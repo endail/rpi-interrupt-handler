@@ -12,7 +12,7 @@
 
 namespace InterruptHandler {
 
-const char* const InterruptHandler::_edgeToStr(const Edge e) {
+std::string InterruptHandler::edgeToStr(const Edge e) {
 
     switch(e) {
         case Edge::NONE: return "none";
@@ -136,18 +136,65 @@ void InterruptHandler::_setupInterrupt(const Entry e) {
 void InterruptHandler::attachInterrupt(
     const int gpioPin,
     const Edge type,
-    const _INTERRUPT_CALLBACK onInterrupt,
-    const _ERROR_CALLBACK onError) {
+    const _INTERRUPT_CALLBACK onInterrupt) {
     
+        //there can only be one edge type for a given pin
+        //eg. it's not possible to have an interrupt for
+        //rising and falling simultaneously
+        //
+        //need to check whether there is an existing pin
+        //config and whether the existing pin config's edge type
+        //is different from this edge type
+
         struct Entry e;
 
         e.gpioPin = gpioPin;
         e.edge = type;
         e.onInterrupt = onInterrupt;
-        e.onError = onError;
-        e.watch = true;
 
         _setupInterrupt(e);
+
+}
+
+void InterruptHandler::removeInterrupt(
+    const int gpioPin,
+    const _INTERRUPT_CALLBACK onInterrupt) {
+
+        //first, find the config in the vector
+        auto it = std::find_if(
+            _configs.begin(),
+            _configs.end(),
+            [gpioPin](const EdgeConfig &c) {
+                return c.gpioPin == gpioPin; });
+
+        //no config found
+        if(it == _configs.end()) {
+            return;
+        }
+
+        //second, find the interrupt callback in the vector
+        auto it2 = std::find_if(
+            it->begin(),
+            it->end(),
+            [onInterrupt](const _INTERRUPT_CALLBACK& cb) {
+                return cb == onInterrupt; });
+
+        //no callback found
+        if(it2 == it->end()) {
+            return;
+        }
+
+        //remove the interrupt callback
+        it2->erase(onInterrupt);
+
+        //if the vector of callbacks is now empty,
+        //disable listening for callbacks
+        if(it2->empty()) {
+            //stop listening
+            //gpio utility...
+        }
+
+        //the config can stay; it doesn't matter
 
 }
 

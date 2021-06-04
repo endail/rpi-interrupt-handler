@@ -19,6 +19,13 @@ enum class Edge {
     BOTH = 3
 };
 
+struct EdgeConfig {
+    int gpioPin;
+    Edge edgeType;
+    int fd;
+    std::vector<_INTERRUPT_CALLBACK> listeners;
+};
+
 struct Entry {
     _INTERRUPT_CALLBACK onInterrupt;
     _ERROR_CALLBACK onError;
@@ -34,13 +41,14 @@ class InterruptHandler {
 protected:
     static const char* const _GPIO_PROG = "/usr/bin/gpio";
     static std::vector<Entry> _entries;
+    static std::vector<EdgeConfig> _configs;
     InterruptHandler() { }
 
 public:
 
     //thread function
     static void _watchPin(const Entry* const e);
-    static const char* const _edgeToStr(const Edge e);
+    static std::string edgeToStr(const Edge e);
     static std::string getClassNodePath(const int gpioPin);
 
     void InterruptHandler::_setupInterrupt(const Entry e);
@@ -49,8 +57,12 @@ public:
     static void attachInterrupt(
         const int gpioPin,
         const Edge type,
-        const _INTERRUPT_CALLBACK onInterrupt,
-        const _ERROR_CALLBACK onError);
+        const _INTERRUPT_CALLBACK onInterrupt);
+
+    static void removeInterrupt(
+        const int gpioPin,
+        const Edge type,
+        const _INTERRUPT_CALLBACK onInterrupt);
 
 };
 };
