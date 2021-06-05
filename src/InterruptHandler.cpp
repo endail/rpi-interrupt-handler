@@ -1,6 +1,26 @@
+// MIT License
+//
+// Copyright (c) 2021 Daniel Robertson
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 #include "../include/InterruptHandler.h"
-
 #include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -9,90 +29,38 @@
 #include <thread>
 #include <algorithm>
 #include <cstdlib>
+#include <iterator>
 
 namespace InterruptHandler {
 
-std::string InterruptHandler::edgeToStr(const Edge e) {
+const char* const InterruptHandler::EDGE_TO_STR[4] = {
+    "none",
+    "rising",
+    "falling",
+    "both"
+};
 
-    switch(e) {
-        case Edge::NONE: return "none";
-        case Edge::RISING: return "rising";
-        case Edge::FALLING: return "falling";
-        case Edge::BOTH: return "both";
-    }
+const char* const InterruptHandler::GPIO_PATHS[2] = {
+    "/usr/bin/gpio",
+    "/usr/local/bin/gpio"
+};
 
-    throw std::invalid_argument("unknown edge type");
+void InterruptHandler::_set_gpio_pin(const int pin, const Edge e) {
 
-}
-
-std::string InterruptHandler::getClassNodePath(const int gpioPin) {
-    return std::string("/sys/class/gpio/gpio")
-        + std::to_string(gpioPin);
-}
-
-void InterruptHandler::_watchPin(const Entry* const e) {
-
-    int epollFd;
-    int ready;
-    bool success = false;
-    struct epoll_event inevents;
-    struct epoll_event outevents;
-    uint8_t c;
-
-    inevents.events = EPOLLPRI | EPOLLERR | EPOLLONESHOT | EPOLLWAKEUP;
-
-    epollFd = ::epoll_create(1);
-    ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->fd, &inevents);
-
-    //looping means onInterrupt will trigger for each interrupt
-    //and will only end when watch is false. in this case,
-    //the fds are closed and the thread ends
-    while(e->watch) {
-        if(::epoll_wait(epollFd, &outevents, 1, -1) == 1) {
-
-            //wiringpi does this to "reset" the interrupt
-            //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1947-L1954
-            ::lseek(e->fd, 0, SEEK_SET);
-            ::read(e->fd, &c, 1);
-            
-            //call the user interrupt handler func
-            e->onInterrupt();
-
-        }
-        else {
-            e->watch = false;
-            e->onError();
-        }
-    }
-
-    ::close(epollFd);
-    ::close(e->fd);
-    _entries.erase(std::find(_entries.begin(), _entries.end(), *e));
-
-}
-
-void InterruptHandler::_setupInterrupt(const Entry e) {
-
-    ::pid_t pid = ::fork();
-    int status;
-    std::string gpioPinStr;
-    std::string edgeTypeStr;
-    int count;
-    char c;
+    const pid_t pid = ::fork();
 
     if(pid < 0) {
         throw std::runtime_error("failed to setup interrupt");
     }
 
-    //https://projects.drogon.net/raspberry-pi/wiringpi/the-gpio-utility/
     if(pid == 0) {
 
-        gpioPinStr = std::string(e.gpioPin);
-        edgeTypeStr = _edgeToStr(e.type);
+        const std::string gpioPinStr = std::to_string(pin);
+        const std::string edgeTypeStr = _edgeToStr(e);
 
         //run the gpio prog to setup an interrupt on the pin
         ::execl(
-            _GPIO_PROG,
+            _gpio_prog.c_str(),
             "gpio",
             "edge",
             gpioPinStr.c_str(),
@@ -105,6 +73,7 @@ void InterruptHandler::_setupInterrupt(const Entry e) {
     }
 
     //parent will wait for child
+    int status;
     ::waitpid(pid, &status, 0);
 
     if(status != EXIT_SUCCESS) {
@@ -112,8 +81,33 @@ void InterruptHandler::_setupInterrupt(const Entry e) {
         throw std::runtime_error("failed to setup interrupt");
     }
 
+}
+
+void InterruptHandler::_clear_interrupt(const int fd) {
+
+    int count;
+    uint8_t c;
+
+    ::lseek(fd, 0, SEEK_SET);
+    ::ioctl(fd, FIONREAD, &count);
+
+    for(int i = 0; i < count; ++i) {
+        ::read(fd, &c, 1);
+    }
+
+}
+
+_EDGE_CONF_ITER InterruptHandler::_get_config(const int pin) {
+    return std::find_if(_configs.begin(), _configs.end(), 
+        [](const EdgeConfig& e) { e.gpioPin == pin; });
+}
+
+void InterruptHandler::_setupInterrupt(EdgeConfig e) {
+
+    _set_gpio_pin(e.gpioPin, e.edgeType);
+
     //open file to watch for value change
-    e.fd = ::open(getClassNodePath(e.gpioPin) + "/value");
+    e.fd = ::open(_getClassNodePath(e.gpioPin).append("/value").c_str());
 
     if(e.fd < 0) {
         throw std::runtime_error("failed to setup interrupt");
@@ -121,15 +115,83 @@ void InterruptHandler::_setupInterrupt(const Entry e) {
 
     //at this point, wiringpi appears to "clear" an interrupt
     //merely by reading the value file to the end?
-    ::ioctl(e.fd, FIONREAD, &count);
-    for(int i = 0; i < count; ++i) {
-        ::read(e.fd, &c, 1);
-    }
+    _clear_interrupt(e.fd);
 
     _entries.push_back(e);
 
     //spawn a thread and let it watch for the pin change
-    std::thread(&InterruptHandler::_watchPin, &e).detach();
+    e.th = std::thread(&InterruptHandler::_watchPin, &e);
+    e.th.detach();
+
+}
+
+std::string InterruptHandler::_edgeToStr(const Edge e) {
+    return std::string(EDGE_TO_STR[static_cast<uint8_t>(e)]);
+}
+
+std::string InterruptHandler::_getClassNodePath(const int gpioPin) {
+    return std::string("/sys/class/gpio/gpio").append(
+        std::to_string(gpioPin));
+}
+
+void InterruptHandler::_watchPin(const Entry* const e) {
+
+    int epollFd;
+    int ready;
+    bool success = false;
+    struct epoll_event inevents;
+    struct epoll_event outevents;
+    uint8_t c;
+
+    e->watch = false;
+
+    inevents.events = EPOLLPRI | EPOLLWAKEUP;
+
+    if((epollFd = ::epoll_create(1)) >= 0) {
+        if(::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->fd, &inevents) == 0) {
+            //only allow watching to occur if epoll creation is
+            //successful
+            e->watch = true;
+        }
+    }
+    
+    //looping means onInterrupt will trigger for each interrupt
+    //and will only end when watch is false. in this case,
+    //the fds are closed and the thread ends
+    while(e->watch) {
+        if(::epoll_wait(epollFd, &outevents, 1, -1) == 1) {
+
+            //wiringpi does this to "reset" the interrupt
+            //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1947-L1954
+            _clear_interrupt(e->fd);
+
+            //call the user interrupt handler func
+            e->onInterrupt();
+
+        }
+    }
+
+    ::close(epollFd);
+
+    removeInterrupt(e->gpioPin);
+
+}
+
+void InterruptHandler::init() {
+
+    auto it = std::begin(GPIO_PATHS);
+    const auto end = std::end(GPIO_PATHS);
+
+    for(; it != end; ++it) {
+        if(::access(*it, X_OK) == 0) {
+            _gpio_prog = std::string(*it);
+            break;
+        }
+    }
+
+    if(it == end) {
+        throw std::runtime_error("gpio program not found");
+    }
 
 }
 
@@ -146,55 +208,35 @@ void InterruptHandler::attachInterrupt(
         //config and whether the existing pin config's edge type
         //is different from this edge type
 
-        struct Entry e;
+        const auto it = _get_config(gpioPin);
 
-        e.gpioPin = gpioPin;
-        e.edge = type;
-        e.onInterrupt = onInterrupt;
+        if(it != _configs.end() && it->edgeType != Edge::NONE) {
+            //an existing config exists
+            //and the edge type is either rising, falling, or both
+            //and therefore cannot be overwritten
+            throw std::invalid_argument("interrupt already set");
+        }
+
+        Entry e(gpioPin, type, onInterrupt);
 
         _setupInterrupt(e);
 
 }
 
-void InterruptHandler::removeInterrupt(
-    const int gpioPin,
-    const _INTERRUPT_CALLBACK onInterrupt) {
+void InterruptHandler::removeInterrupt(const int gpioPin) {
 
-        //first, find the config in the vector
-        auto it = std::find_if(
-            _configs.begin(),
-            _configs.end(),
-            [gpioPin](const EdgeConfig &c) {
-                return c.gpioPin == gpioPin; });
+    _EDGE_CONF_ITER it = _get_config(gpioPin);
 
-        //no config found
-        if(it == _configs.end()) {
-            return;
-        }
+    if(it == _configs.end()) {
+        return;
+    }
 
-        //second, find the interrupt callback in the vector
-        auto it2 = std::find_if(
-            it->begin(),
-            it->end(),
-            [onInterrupt](const _INTERRUPT_CALLBACK& cb) {
-                return cb == onInterrupt; });
+    //disable the interrupt
+    _set_gpio_pin(gpioPin, Edge::NONE);
 
-        //no callback found
-        if(it2 == it->end()) {
-            return;
-        }
+    ::close(it->fd);
 
-        //remove the interrupt callback
-        it2->erase(onInterrupt);
-
-        //if the vector of callbacks is now empty,
-        //disable listening for callbacks
-        if(it2->empty()) {
-            //stop listening
-            //gpio utility...
-        }
-
-        //the config can stay; it doesn't matter
+    _configs.erase(it);
 
 }
 
