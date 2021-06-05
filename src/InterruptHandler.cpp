@@ -109,7 +109,9 @@ void InterruptHandler::_setupInterrupt(EdgeConfig e) {
     _set_gpio_pin(e.gpioPin, e.edgeType);
 
     //open file to watch for value change
-    e.fd = ::open(_getClassNodePath(e.gpioPin).append("/value").c_str());
+    e.fd = ::open(
+        _getClassNodePath(e.gpioPin).append("/value").c_str(),
+        O_RDWR);
 
     if(e.fd < 0) {
         throw std::runtime_error("failed to setup interrupt");
