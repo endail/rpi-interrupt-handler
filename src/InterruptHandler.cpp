@@ -94,7 +94,9 @@ void InterruptHandler::_clear_interrupt(const int fd) {
     ::ioctl(fd, FIONREAD, &count);
 
     for(int i = 0; i < count; ++i) {
-        ::read(fd, &c, 1);
+        if(::read(fd, &c, 1) < 0) {
+            break;
+        }
     }
 
 }
