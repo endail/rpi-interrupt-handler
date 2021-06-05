@@ -81,7 +81,7 @@ protected:
     static void _setupInterrupt(EdgeConfig e);
     static std::string _edgeToStr(const Edge e);
     static std::string _getClassNodePath(const int gpioPin);
-    static void _watchPin(const EdgeConfig* const e);
+    static void _watchPin(EdgeConfig* const e);
 
 public:
 

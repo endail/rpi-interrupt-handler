@@ -13,15 +13,11 @@ void onInterrupt() {
 
 int main() {
 
-    int gpioPin = 8;
-    Edge edgeType = Edge::FALLING;
-    std::function<void()> cb(&onInterrupt);
-
     InterruptHandler::init();
     InterruptHandler::attachInterrupt(
-        gpioPin,
-        edgeType,
-        cb);
+        8,
+        Edge::FALLING,
+        std::function<void()>(&onInterrupt));
 
     while(true) {
         std::this_thread::yield();

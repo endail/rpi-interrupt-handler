@@ -134,7 +134,7 @@ std::string InterruptHandler::_getClassNodePath(const int gpioPin) {
         std::to_string(gpioPin));
 }
 
-void InterruptHandler::_watchPin(const Entry* const e) {
+void InterruptHandler::_watchPin(EdgeConfig* const e) {
 
     int epollFd;
     struct epoll_event inevents;
@@ -205,7 +205,7 @@ void InterruptHandler::attachInterrupt(
         //config and whether the existing pin config's edge type
         //is different from this edge type
 
-        const auto it = _get_config(gpioPin);
+        const _EDGE_CONF_ITER it = _get_config(gpioPin);
 
         if(it != _configs.end() && it->edgeType != Edge::NONE) {
             //an existing config exists
@@ -214,7 +214,7 @@ void InterruptHandler::attachInterrupt(
             throw std::invalid_argument("interrupt already set");
         }
 
-        Entry e(gpioPin, type, onInterrupt);
+        struct EdgeConfig e(gpioPin, type, onInterrupt);
 
         _setupInterrupt(e);
 
@@ -228,11 +228,9 @@ void InterruptHandler::removeInterrupt(const int gpioPin) {
         return;
     }
 
-    //disable the interrupt
+    //remove the interrupt
     _set_gpio_pin(gpioPin, Edge::NONE);
-
     ::close(it->fd);
-
     _configs.erase(it);
 
 }
