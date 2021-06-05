@@ -26,7 +26,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <stdexcept>
-#include <thread>
 #include <algorithm>
 #include <cstdlib>
 #include <iterator>

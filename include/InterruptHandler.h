@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <thread>
 
 //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1924-L2081
 
