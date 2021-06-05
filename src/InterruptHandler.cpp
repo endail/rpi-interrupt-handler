@@ -121,7 +121,7 @@ void InterruptHandler::_setupInterrupt(EdgeConfig e) {
     //merely by reading the value file to the end?
     _clear_interrupt(e.fd);
 
-    _entries.push_back(e);
+    _configs.push_back(e);
 
     //spawn a thread and let it watch for the pin change
     e.th = std::thread(&InterruptHandler::_watchPin, &e);
