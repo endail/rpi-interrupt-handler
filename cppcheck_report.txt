@@ -1,2 +1,14 @@
+include/InterruptHandler.h:54:5: warning:inconclusive: Member variable 'EdgeConfig::gpioPin' is not initialized in the constructor. [uninitMemberVar]
+    EdgeConfig() {
+    ^
+include/InterruptHandler.h:54:5: warning:inconclusive: Member variable 'EdgeConfig::edgeType' is not initialized in the constructor. [uninitMemberVar]
+    EdgeConfig() {
+    ^
+include/InterruptHandler.h:54:5: warning:inconclusive: Member variable 'EdgeConfig::fd' is not initialized in the constructor. [uninitMemberVar]
+    EdgeConfig() {
+    ^
+include/InterruptHandler.h:54:5: warning:inconclusive: Member variable 'EdgeConfig::watch' is not initialized in the constructor. [uninitMemberVar]
+    EdgeConfig() {
+    ^
 nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
 
