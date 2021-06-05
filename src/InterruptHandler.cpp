@@ -32,14 +32,14 @@
 
 namespace InterruptHandler {
 
-const char* const InterruptHandler::EDGE_TO_STR[4] = {
+const char* const InterruptHandler::EDGE_TO_STR[] = {
     "none",
     "rising",
     "falling",
     "both"
 };
 
-const char* const InterruptHandler::GPIO_PATHS[2] = {
+const char* const InterruptHandler::GPIO_PATHS[] = {
     "/usr/bin/gpio",
     "/usr/local/bin/gpio"
 };
