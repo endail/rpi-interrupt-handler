@@ -197,9 +197,9 @@ void InterruptHandler::init() {
 }
 
 void InterruptHandler::attachInterrupt(
-    const int gpioPin,
-    const Edge type,
-    const _INTERRUPT_CALLBACK onInterrupt) {
+    int gpioPin,
+    Edge type,
+    _INTERRUPT_CALLBACK onInterrupt) {
     
         //there can only be one edge type for a given pin
         //eg. it's not possible to have an interrupt for
@@ -218,7 +218,7 @@ void InterruptHandler::attachInterrupt(
             throw std::invalid_argument("interrupt already set");
         }
 
-        struct EdgeConfig e(gpioPin, type, onInterrupt);
+        EdgeConfig e(gpioPin, type, onInterrupt);
 
         _setupInterrupt(e);
 

@@ -55,9 +55,9 @@ public:
         EdgeConfig(-1, Edge::NONE, std::function<void()>()) {}
 
     EdgeConfig(
-        const int pin,
-        const Edge e,
-        const _INTERRUPT_CALLBACK cb)
+        int pin,
+        Edge e,
+        _INTERRUPT_CALLBACK cb)
             :   gpioPin(pin),
                 edgeType(e),
                 onInterrupt(cb),
@@ -93,9 +93,9 @@ public:
     static void init();
 
     static void attachInterrupt(
-        const int gpioPin,
-        const Edge type,
-        const _INTERRUPT_CALLBACK onInterrupt);
+        int gpioPin,
+        Edge type,
+        _INTERRUPT_CALLBACK onInterrupt);
 
     static void removeInterrupt(const int gpioPin);
 
