@@ -51,7 +51,8 @@ public:
     volatile bool watch;
     std::thread th;
 
-    EdgeConfig() = default;
+    EdgeConfig() :
+        EdgeConfig(-1, Edge::NONE, std::function<void()>()) {}
 
     EdgeConfig(
         const int pin,
