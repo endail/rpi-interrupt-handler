@@ -21,14 +21,15 @@
 // SOFTWARE.
 
 #include "../include/InterruptHandler.h"
-#include <sys/epoll.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <stdexcept>
 #include <algorithm>
 #include <cstdlib>
 #include <iterator>
+#include <stdexcept>
+#include <sys/epoll.h>
+#include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 namespace InterruptHandler {
 
