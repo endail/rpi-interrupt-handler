@@ -1,8 +1,2 @@
-src/InterruptHandler.cpp:195:0: style: The function 'attachInterrupt' is never used. [unusedFunction]
-
-^
-src/InterruptHandler.cpp:177:0: style: The function 'init' is never used. [unusedFunction]
-
-^
 nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
 
