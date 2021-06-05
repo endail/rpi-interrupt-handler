@@ -65,6 +65,15 @@ public:
                 watch(false) {
     }
 
+    EdgeConfig(const EdgeConfig& e2) {
+        this->gpioPin = e2.gpioPin;
+        this->edgeType = e2.edgeType;
+        this->onInterrupt = e2.onInterrupt;
+        this->fd = e2.fd;
+        this->watch = e2.watch;
+        this->th = e2.th;
+    }
+
 };
 
 typedef std::vector<EdgeConfig>::iterator _EDGE_CONF_ITER;
