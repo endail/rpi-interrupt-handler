@@ -66,8 +66,8 @@ public:
 
 typedef std::vector<EdgeConfig>::iterator _EDGE_CONF_ITER;
 
-static const char* const EDGE_TO_STR[4];
-static const char* const GPIO_PATHS[2];
+static const char* const EDGE_TO_STR[];
+static const char* const GPIO_PATHS[];
 
 class InterruptHandler {
 
