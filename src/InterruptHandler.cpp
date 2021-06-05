@@ -99,7 +99,7 @@ void InterruptHandler::_clear_interrupt(const int fd) {
 
 _EDGE_CONF_ITER InterruptHandler::_get_config(const int pin) {
     return std::find_if(_configs.begin(), _configs.end(), 
-        [](const EdgeConfig& e) { e.gpioPin == pin; });
+        [pin](const EdgeConfig& e) { e.gpioPin == pin; });
 }
 
 void InterruptHandler::_setupInterrupt(EdgeConfig e) {
