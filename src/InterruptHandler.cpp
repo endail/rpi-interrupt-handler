@@ -137,11 +137,8 @@ std::string InterruptHandler::_getClassNodePath(const int gpioPin) {
 void InterruptHandler::_watchPin(const Entry* const e) {
 
     int epollFd;
-    int ready;
-    bool success = false;
     struct epoll_event inevents;
     struct epoll_event outevents;
-    uint8_t c;
 
     e->watch = false;
 

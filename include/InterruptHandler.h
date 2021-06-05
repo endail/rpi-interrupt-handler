@@ -56,7 +56,9 @@ public:
         const _INTERRUPT_CALLBACK cb)
             :   gpioPin(pin),
                 edgeType(e),
-                onInterrupt(cb) {
+                onInterrupt(cb),
+                fd(-1),
+                watch(false) {
     }
 
 };
@@ -85,7 +87,6 @@ public:
 
     static void init();
 
-    //use wpiPinToGpio and physPinToGpio to translate
     static void attachInterrupt(
         const int gpioPin,
         const Edge type,
