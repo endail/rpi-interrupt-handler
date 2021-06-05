@@ -51,6 +51,9 @@ public:
     volatile bool watch;
     std::thread th;
 
+    EdgeConfig() {
+    }
+
     EdgeConfig(
         const int pin,
         const Edge e,
