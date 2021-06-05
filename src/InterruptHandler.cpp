@@ -27,8 +27,10 @@
 #include <stdexcept>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 namespace InterruptHandler {
@@ -99,7 +101,7 @@ void InterruptHandler::_clear_interrupt(const int fd) {
 
 _EDGE_CONF_ITER InterruptHandler::_get_config(const int pin) {
     return std::find_if(_configs.begin(), _configs.end(), 
-        [pin](const EdgeConfig& e) { e.gpioPin == pin; });
+        [pin](const EdgeConfig& e) { return e.gpioPin == pin; });
 }
 
 void InterruptHandler::_setupInterrupt(EdgeConfig e) {
