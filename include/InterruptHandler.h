@@ -49,7 +49,6 @@ public:
     _INTERRUPT_CALLBACK onInterrupt;
     int fd;
     volatile bool watch;
-    std::thread th;
 
     EdgeConfig() :
         EdgeConfig(-1, Edge::NONE, std::function<void()>()) {}
@@ -71,7 +70,6 @@ public:
         this->onInterrupt = e2.onInterrupt;
         this->fd = e2.fd;
         this->watch = e2.watch;
-        this->th = e2.th;
     }
 
 };
