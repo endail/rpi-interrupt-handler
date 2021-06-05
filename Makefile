@@ -1,10 +1,11 @@
 CXX := g++
+#CXX := ${RPI_TOOLCHAIN}/bin/arm-linux-gnueabihf-g++.exe
 INCDIR := include
 SRCDIR := src
 BUILDDIR := build
 BINDIR := bin
 SRCEXT := cpp
-LIBS := 
+LIBS := -lrt -lcrypt -pthread
 INC := -I $(INCDIR)
 CFLAGS :=	-O2 \
 			-pipe \
@@ -30,10 +31,7 @@ ifeq ($(PREFIX),)
 endif
 
 
-ifeq ($(GITHUB_ACTIONS),true)
-# gha needs these additional libs
-	LIBS := $(LIBS) -lrt -lcrypt -pthread
-else
+ifeq ($(GITHUB_ACTIONS),false)
 # only include these flags on rpi, not gha
 	CFLAGS := 	-march=native \
 				-mfpu=vfp \
@@ -52,12 +50,13 @@ CXXFLAGS := -std=c++11 \
 
 .PHONY: all
 all: 	dirs \
-		$(BUILDDIR)/InterruptHandler.o
+		$(BUILDDIR)/InterruptHandler.o \
 		test
 
 .PHONY: dirs
 dirs:
 	mkdir -p $(BINDIR)
+	mkdir -p $(BUILDDIR)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
 	$(CXX) $(CXXFLAGS) $(INC) -c -o $@ $<
@@ -67,6 +66,7 @@ test: $(BUILDDIR)/test.o
 	$(CXX) $(CXXFLAGS) $(INC) \
 		-o $(BINDIR)/test \
 		$(BUILDDIR)/test.o \
+		$(BUILDDIR)/InterruptHandler.o \
 		$(LIBS)
 
 .PHONY: clean

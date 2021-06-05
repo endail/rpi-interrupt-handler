@@ -33,7 +33,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-namespace InterruptHandler {
+namespace endail {
 
 const char* const InterruptHandler::EDGE_TO_STR[] = {
     "none",
@@ -46,6 +46,9 @@ const char* const InterruptHandler::GPIO_PATHS[] = {
     "/usr/bin/gpio",
     "/usr/local/bin/gpio"
 };
+
+std::string InterruptHandler::_gpio_prog;
+std::vector<InterruptHandler::EdgeConfig> InterruptHandler::_configs;
 
 void InterruptHandler::_set_gpio_pin(const int pin, const Edge e) {
 
@@ -101,7 +104,7 @@ void InterruptHandler::_clear_interrupt(const int fd) {
 
 }
 
-_EDGE_CONF_ITER InterruptHandler::_get_config(const int pin) {
+InterruptHandler::_EDGE_CONF_ITER InterruptHandler::_get_config(const int pin) {
     return std::find_if(_configs.begin(), _configs.end(), 
         [pin](const EdgeConfig& e) { return e.gpioPin == pin; });
 }

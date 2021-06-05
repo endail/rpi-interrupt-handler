@@ -30,55 +30,45 @@
 
 //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1924-L2081
 
-namespace InterruptHandler {
+namespace endail {
 
 typedef std::function<void()> _INTERRUPT_CALLBACK;
 typedef std::function<void()> _ERROR_CALLBACK;
 
-enum class Edge {
-    NONE = 0,
-    RISING = 1,
-    FALLING = 2,
-    BOTH = 3
-};
-
-struct EdgeConfig {
-public:
-    int gpioPin;
-    Edge edgeType;
-    _INTERRUPT_CALLBACK onInterrupt;
-    int fd;
-    volatile bool watch;
-
-    EdgeConfig() :
-        EdgeConfig(-1, Edge::NONE, std::function<void()>()) {}
-
-    EdgeConfig(
-        int pin,
-        Edge e,
-        _INTERRUPT_CALLBACK cb)
-            :   gpioPin(pin),
-                edgeType(e),
-                onInterrupt(cb),
-                fd(-1),
-                watch(false) {
-    }
-
-    EdgeConfig(const EdgeConfig& e2) {
-        this->gpioPin = e2.gpioPin;
-        this->edgeType = e2.edgeType;
-        this->onInterrupt = e2.onInterrupt;
-        this->fd = e2.fd;
-        this->watch = e2.watch;
-    }
-
-};
-
-typedef std::vector<EdgeConfig>::iterator _EDGE_CONF_ITER;
-
 class InterruptHandler {
 
+public:
+    enum class Edge {
+        NONE = 0,
+        RISING = 1,
+        FALLING = 2,
+        BOTH = 3
+    };
+
 protected:
+
+    struct EdgeConfig {
+    public:
+        int gpioPin;
+        Edge edgeType;
+        _INTERRUPT_CALLBACK onInterrupt;
+        int fd;
+        volatile bool watch;
+
+        EdgeConfig(
+            int pin,
+            Edge e,
+            _INTERRUPT_CALLBACK cb)
+                :   gpioPin(pin),
+                    edgeType(e),
+                    onInterrupt(cb),
+                    fd(-1),
+                    watch(false) {
+        }
+
+    };
+
+    typedef std::vector<EdgeConfig>::iterator _EDGE_CONF_ITER;
 
     static const char* const EDGE_TO_STR[];
     static const char* const GPIO_PATHS[];
@@ -95,15 +85,13 @@ protected:
     static std::string _getClassNodePath(const int gpioPin);
     static void _watchPin(EdgeConfig* const e);
 
+
 public:
-
     static void init();
-
     static void attachInterrupt(
         int gpioPin,
         Edge type,
         _INTERRUPT_CALLBACK onInterrupt);
-
     static void removeInterrupt(const int gpioPin);
 
 };
