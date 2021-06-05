@@ -1,0 +1,23 @@
+include/InterruptHandler.h:53:5: warning: Member variable 'EdgeConfig::fd' is not initialized in the constructor. [uninitMemberVar]
+    EdgeConfig(
+    ^
+include/InterruptHandler.h:53:5: warning: Member variable 'EdgeConfig::watch' is not initialized in the constructor. [uninitMemberVar]
+    EdgeConfig(
+    ^
+src/InterruptHandler.cpp:141:18: style: Variable 'success' is assigned a value that is never used. [unreadVariable]
+    bool success = false;
+                 ^
+src/InterruptHandler.cpp:140:9: style: Unused variable: ready [unusedVariable]
+    int ready;
+        ^
+src/InterruptHandler.cpp:144:13: style: Unused variable: c [unusedVariable]
+    uint8_t c;
+            ^
+src/InterruptHandler.cpp:198:0: style: The function 'attachInterrupt' is never used. [unusedFunction]
+
+^
+src/InterruptHandler.cpp:180:0: style: The function 'init' is never used. [unusedFunction]
+
+^
+nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
+
