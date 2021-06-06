@@ -95,6 +95,12 @@ public:
         _INTERRUPT_CALLBACK onInterrupt);
     static void removeInterrupt(const int gpioPin);
 
+    //return a vector of... structs?
+    //with gpio pin, edge type, and callback func?
+    static const std::vector<EdgeConfig>& getInterrupts() const {
+        return _configs;
+    }
+
 };
 };
 #endif
