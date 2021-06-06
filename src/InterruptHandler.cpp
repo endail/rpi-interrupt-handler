@@ -157,7 +157,7 @@ void InterruptHandler::_watchPin(EdgeConfig* const e) {
     struct epoll_event inevent;
     struct epoll_event outevent;
 
-    inevents.events = EPOLLPRI | EPOLLWAKEUP;
+    inevent.events = EPOLLPRI | EPOLLWAKEUP;
 
     if(!(
         (epollFd = ::epoll_create(NUM_EVENTS)) >= 0 &&
