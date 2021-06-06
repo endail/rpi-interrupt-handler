@@ -52,8 +52,8 @@ protected:
         int gpioPin;
         Edge edgeType;
         _INTERRUPT_CALLBACK onInterrupt;
-        int fd;
-        volatile bool watch;
+        int pinValEvFd;
+        int cancelEvFd;
 
         EdgeConfig(
             int pin,
@@ -62,8 +62,8 @@ protected:
                 :   gpioPin(pin),
                     edgeType(e),
                     onInterrupt(cb),
-                    fd(-1),
-                    watch(false) {
+                    pinValEvFd(-1),
+                    cancelEvFd(-1) {
         }
 
     };
@@ -84,6 +84,7 @@ protected:
     static std::string _edgeToStr(const Edge e);
     static std::string _getClassNodePath(const int gpioPin);
     static void _watchPin(EdgeConfig* const e);
+    static void _stopWatching(EdgeConfig* const e);
 
 
 public:

@@ -26,6 +26,7 @@
 #include <iterator>
 #include <stdexcept>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -114,17 +115,23 @@ void InterruptHandler::_setupInterrupt(EdgeConfig e) {
     _set_gpio_pin(e.gpioPin, e.edgeType);
 
     //open file to watch for value change
-    e.fd = ::open(
+    e.pinValEvFd = ::open(
         _getClassNodePath(e.gpioPin).append("/value").c_str(),
         O_RDWR);
 
-    if(e.fd < 0) {
+    if(e.pinValEvFd < 0) {
+        throw std::runtime_error("failed to setup interrupt");
+    }
+
+    e.cancelEvFd = ::eventfd(0, EFD_SEMAPHORE);
+
+    if(e.cancelEvFd < 0) {
         throw std::runtime_error("failed to setup interrupt");
     }
 
     //at this point, wiringpi appears to "clear" an interrupt
     //merely by reading the value file to the end?
-    _clear_interrupt(e.fd);
+    _clear_interrupt(e.pinValEvFd);
 
     _configs.push_back(e);
 
@@ -144,42 +151,61 @@ std::string InterruptHandler::_getClassNodePath(const int gpioPin) {
 
 void InterruptHandler::_watchPin(EdgeConfig* const e) {
 
-    int epollFd;
-    struct epoll_event inevents;
-    struct epoll_event outevents;
+    const int NUM_EVENTS = 2;
 
-    e->watch = false;
+    int epollFd;
+    struct epoll_event inevent;
+    struct epoll_event outevent;
 
     inevents.events = EPOLLPRI | EPOLLWAKEUP;
 
-    if((epollFd = ::epoll_create(1)) >= 0) {
-        if(::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->fd, &inevents) == 0) {
-            //only allow watching to occur if epoll creation is
-            //successful
-            e->watch = true;
-        }
+    if(!(
+        (epollFd = ::epoll_create(NUM_EVENTS)) >= 0 &&
+        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->fd, &inevent) == 0 &&
+        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->cancelEvFd, &inevent) == 0
+        ) {
+            //something has gone horribly wrong
+            ::close(epollFd);
+            removeInterrupt(e->gpioPin);
+            return;
     }
-    
-    //looping means onInterrupt will trigger for each interrupt
-    //and will only end when watch is false. in this case,
-    //the fds are closed and the thread ends
-    while(e->watch) {
-        if(::epoll_wait(epollFd, &outevents, 1, -1) == 1) {
 
+    //looping means onInterrupt will trigger for each interrupt
+    while(true) {
+
+        //maxevents set to 1 means only 1 fd will be processed
+        //at a time - this is good!
+        if(::epoll_wait(epollFd, &outevent, 1, -1) < 0) {
+            continue;
+        }
+
+        //check if the fd is the cancel event
+        if(outevent.data.fd == e->cancelEvFd) {
+            ::close(epollFd);
+            break;
+        }
+
+        //interrupt has occurred
+        if(outevent.data.fd == e->pinValEvFd) {
+            
             //wiringpi does this to "reset" the interrupt
             //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1947-L1954
-            _clear_interrupt(e->fd);
-
+            _clear_interrupt(e->pinValEvFd);
             //call the user interrupt handler func
             e->onInterrupt();
 
         }
+
     }
 
-    ::close(epollFd);
+}
 
-    removeInterrupt(e->gpioPin);
-
+void InterruptHandler::_stopWatching(EdgeConfig* const e) {
+    //https://man7.org/linux/man-pages/man2/eventfd.2.html
+    //this will raise an event on the fd which will be picked up
+    //by epoll_wait
+    const uint8_t buf = 1;
+    ::write(e->cancelEvFd, &buf, sizeof(buf));
 }
 
 void InterruptHandler::init() {
@@ -236,9 +262,21 @@ void InterruptHandler::removeInterrupt(const int gpioPin) {
         return;
     }
 
-    //remove the interrupt
+    //IS THIS THREAD SAFE???
+    //might need a mutex for access to the vector
+
+    //first, stop the thread watching the pin state
+    _stopWatching(&(*it));
+
+    //second, use the gpio prog to "reset" the interrupt
+    //condition
     _set_gpio_pin(gpioPin, Edge::NONE);
-    ::close(it->fd);
+
+    //finally, close any open fds and remove the local
+    //interrupt config
+    ::close(it->pinValEvFd);
+    ::close(it->eventFd);
+
     _configs.erase(it);
 
 }
