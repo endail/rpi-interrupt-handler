@@ -1,5 +1,2 @@
-src/InterruptHandler.cpp:162:7: error: Unmatched '('. Configuration: ''. [syntaxError]
-    if(!(
-      ^
 nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
 
