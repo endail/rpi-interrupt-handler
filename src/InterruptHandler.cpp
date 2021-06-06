@@ -51,7 +51,7 @@ const char* const InterruptHandler::GPIO_PATHS[] = {
 std::string InterruptHandler::_gpio_prog;
 std::vector<InterruptHandler::EdgeConfig> InterruptHandler::_configs;
 
-void InterruptHandler::_set_gpio_pin(const int pin, const Edge e) {
+void InterruptHandler::_set_gpio_pin(const int gpioPin, const Edge e) {
 
     const pid_t pid = ::fork();
 
@@ -61,7 +61,7 @@ void InterruptHandler::_set_gpio_pin(const int pin, const Edge e) {
 
     if(pid == 0) {
 
-        const std::string gpioPinStr = std::to_string(pin);
+        const std::string gpioPinStr = std::to_string(gpioPin);
         const std::string edgeTypeStr = _edgeToStr(e);
 
         //run the gpio prog to setup an interrupt on the pin
@@ -105,9 +105,15 @@ void InterruptHandler::_clear_interrupt(const int fd) {
 
 }
 
-InterruptHandler::_EDGE_CONF_ITER InterruptHandler::_get_config(const int pin) {
-    return std::find_if(_configs.begin(), _configs.end(), 
-        [pin](const EdgeConfig& e) { return e.gpioPin == pin; });
+InterruptHandler::_EDGE_CONF_ITER InterruptHandler::_get_config(
+    const int gpioPin) {
+
+        return std::find_if(
+            _configs.begin(),
+            _configs.end(), 
+            [gpioPin](const EdgeConfig& e) {
+                return e.gpioPin == gpioPin; });
+
 }
 
 void InterruptHandler::_setupInterrupt(EdgeConfig e) {
@@ -123,6 +129,7 @@ void InterruptHandler::_setupInterrupt(EdgeConfig e) {
         throw std::runtime_error("failed to setup interrupt");
     }
 
+    //create event fd for cancelling the thread watch routine
     e.cancelEvFd = ::eventfd(0, EFD_SEMAPHORE);
 
     if(e.cancelEvFd < 0) {
@@ -151,8 +158,6 @@ std::string InterruptHandler::_getClassNodePath(const int gpioPin) {
 
 void InterruptHandler::_watchPin(EdgeConfig* const e) {
 
-    const int NUM_EVENTS = 2;
-
     int epollFd;
     struct epoll_event inevent;
     struct epoll_event outevent;
@@ -160,11 +165,12 @@ void InterruptHandler::_watchPin(EdgeConfig* const e) {
     inevent.events = EPOLLPRI | EPOLLWAKEUP;
 
     if(!(
-        (epollFd = ::epoll_create(NUM_EVENTS)) >= 0 &&
+        (epollFd = ::epoll_create(2)) >= 0 &&
         ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->pinValEvFd, &inevent) == 0 &&
         ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->cancelEvFd, &inevent) == 0
         )) {
             //something has gone horribly wrong
+            //cannot wait for cancel event; must clean up now
             ::close(epollFd);
             removeInterrupt(e->gpioPin);
             return;
@@ -174,7 +180,7 @@ void InterruptHandler::_watchPin(EdgeConfig* const e) {
     while(true) {
 
         //maxevents set to 1 means only 1 fd will be processed
-        //at a time - this is good!
+        //at a time - this is simpler!
         if(::epoll_wait(epollFd, &outevent, 1, -1) < 0) {
             continue;
         }

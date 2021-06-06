@@ -77,9 +77,9 @@ protected:
     static std::vector<EdgeConfig> _configs;
     InterruptHandler() { }
 
-    static void _set_gpio_pin(const int pin, const Edge e);
+    static void _set_gpio_pin(const int gpioPin, const Edge e);
     static void _clear_interrupt(const int fd);
-    static _EDGE_CONF_ITER _get_config(const int pin);
+    static _EDGE_CONF_ITER _get_config(const int gpioPin);
     static void _setupInterrupt(EdgeConfig e);
     static std::string _edgeToStr(const Edge e);
     static std::string _getClassNodePath(const int gpioPin);
