@@ -97,7 +97,7 @@ public:
 
     //return a vector of... structs?
     //with gpio pin, edge type, and callback func?
-    static const std::vector<EdgeConfig>& getInterrupts() const {
+    static const std::vector<EdgeConfig>& getInterrupts() {
         return _configs;
     }
 
