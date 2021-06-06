@@ -275,7 +275,7 @@ void InterruptHandler::removeInterrupt(const int gpioPin) {
     //finally, close any open fds and remove the local
     //interrupt config
     ::close(it->pinValEvFd);
-    ::close(it->eventFd);
+    ::close(it->cancelEvFd);
 
     _configs.erase(it);
 
