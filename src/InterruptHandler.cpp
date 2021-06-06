@@ -163,7 +163,7 @@ void InterruptHandler::_watchPin(EdgeConfig* const e) {
         (epollFd = ::epoll_create(NUM_EVENTS)) >= 0 &&
         ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->pinValEvFd, &inevent) == 0 &&
         ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->cancelEvFd, &inevent) == 0
-        ) {
+        )) {
             //something has gone horribly wrong
             ::close(epollFd);
             removeInterrupt(e->gpioPin);
