@@ -46,8 +46,8 @@ public:
 
     struct EdgeConfig {
     public:
-        const int gpioPin;
-        const Edge edgeType;
+        int gpioPin;
+        Edge edgeType;
         INTERRUPT_CALLBACK onInterrupt;
         int pinValEvFd = -1;
         int cancelEvFd = -1;
