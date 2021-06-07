@@ -50,7 +50,7 @@ CXXFLAGS := -std=c++11 \
 
 .PHONY: all
 all: 	dirs \
-		$(BUILDDIR)/InterruptHandler.o \
+		$(BUILDDIR)/RpiInterrupter.o \
 		test
 
 .PHONY: dirs
@@ -66,7 +66,7 @@ test: $(BUILDDIR)/test.o
 	$(CXX) $(CXXFLAGS) $(INC) \
 		-o $(BINDIR)/test \
 		$(BUILDDIR)/test.o \
-		$(BUILDDIR)/InterruptHandler.o \
+		$(BUILDDIR)/RpiInterrupter.o \
 		$(LIBS)
 
 .PHONY: clean
