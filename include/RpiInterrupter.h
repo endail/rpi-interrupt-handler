@@ -52,6 +52,8 @@ public:
         int pinValEvFd = -1;
         int cancelEvFd = -1;
 
+        EdgeConfig() = default;
+
         EdgeConfig(const int pin, const Edge e, INTERRUPT_CALLBACK cb)
             :   gpioPin(pin),
                 edgeType(e),
