@@ -1,5 +1,5 @@
-src/RpiInterrupter.cpp:57:11: error: Syntax Error: AST broken, 'if' doesn't have two operands. [internalAstError]
-        if(:access(_GPIO_PATHS[i], X_OK) == 0) {
-          ^
+src/RpiInterrupter.cpp:67:0: style: The function 'getInterrupts' is never used. [unusedFunction]
+
+^
 nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
 
