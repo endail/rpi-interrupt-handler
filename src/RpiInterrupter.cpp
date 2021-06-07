@@ -64,7 +64,7 @@ void RpiInterrupter::init() {
 
 }
 
-const std::vector<EdgeConfig>& RpiInterrupter::getInterrupts() {
+const std::vector<RpiInterrupter::EdgeConfig>& RpiInterrupter::getInterrupts() {
     return _configs;
 }
 
@@ -96,7 +96,7 @@ void RpiInterrupter::removeInterrupt(const int gpioPin) {
 
 void RpiInterrupter::attachInterrupt(
     int gpioPin,
-    Edge type,
+    RpiInterrupter::Edge type,
     RpiInterrupter::INTERRUPT_CALLBACK onInterrupt) {
     
         //there can only be one edge type for a given pin
@@ -109,18 +109,18 @@ void RpiInterrupter::attachInterrupt(
 
         std::unique_lock<std::mutex> lck(_configVecMtx);
 
-        const _EDGE_CONF_ITER it = _get_config(gpioPin);
+        const RpiInterrupter::_EDGE_CONF_ITER it = _get_config(gpioPin);
 
         //an existing config exists
         //and the edge type is either rising, falling, or both
         //and therefore cannot be overwritten
-        if(it != _configs.end() && it->edgeType != Edge::NONE) {
+        if(it != _configs.end() && it->edgeType != RpiInterrupter::Edge::NONE) {
             throw std::invalid_argument("interrupt already set");
         }
 
         lck.unlock();
 
-        EdgeConfig e(gpioPin, type, onInterrupt);
+        RpiInterrupter::EdgeConfig e(gpioPin, type, onInterrupt);
 
         _setupInterrupt(e);
 
@@ -140,7 +140,7 @@ std::string RpiInterrupter::_getClassNodePath(const int gpioPin) {
 
 void RpiInterrupter::_set_gpio_interrupt(
     const int gpioPin,
-    const Edge e) {
+    const RpiInterrupter::Edge e) {
 
         const pid_t pid = ::fork();
 
@@ -197,12 +197,12 @@ RpiInterrupter::_EDGE_CONF_ITER RpiInterrupter::_get_config(const int gpioPin) {
     return std::find_if(
         _configs.begin(),
         _configs.end(), 
-        [gpioPin](const EdgeConfig& e) {
+        [gpioPin](const RpiInterrupter::EdgeConfig& e) {
             return e.gpioPin == gpioPin; });
 
 }
 
-void RpiInterrupter::_setupInterrupt(EdgeConfig e) {
+void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
 
     _set_gpio_interrupt(e.gpioPin, e.edgeType);
 
@@ -230,7 +230,7 @@ void RpiInterrupter::_setupInterrupt(EdgeConfig e) {
 
 }
 
-void RpiInterrupter::_watchPinValue(EdgeConfig* const e) {
+void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
 
     int epollFd;
     struct epoll_event inevent;
@@ -286,7 +286,7 @@ void RpiInterrupter::_watchPinValue(EdgeConfig* const e) {
 
 }
 
-void RpiInterrupter::_stopWatching(EdgeConfig* const e) {
+void RpiInterrupter::_stopWatching(RpiInterrupter::EdgeConfig* const e) {
     //https://man7.org/linux/man-pages/man2/eventfd.2.html
     //this will raise an event on the fd which will be picked up
     //by epoll_wait
