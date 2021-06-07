@@ -50,6 +50,7 @@ const char* const RpiInterrupter::_GPIO_PATHS[] = {
 
 const char* RpiInterrupter::_gpioProgPath;
 std::vector<RpiInterrupter::EdgeConfig> RpiInterrupter::_configs;
+std::mutex RpiInterrupter::_configVecMtx;
 
 void RpiInterrupter::init() {
 
