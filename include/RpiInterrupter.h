@@ -90,6 +90,7 @@ protected:
     static void _set_gpio_interrupt(const int gpioPin, const Edge e);
     static void _clear_gpio_interrupt(const int fd);
 
+    //TODO: change iter to pointer?
     static _EDGE_CONF_ITER _get_config(const int gpioPin);
 
     static void _setupInterrupt(EdgeConfig e);
