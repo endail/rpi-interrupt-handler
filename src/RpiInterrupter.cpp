@@ -54,7 +54,7 @@ std::vector<RpiInterrupter::EdgeConfig> RpiInterrupter::_configs;
 void RpiInterrupter::init() {
 
     for(uint8_t i = 0, l = sizeof(_GPIO_PATHS); i < l; ++i) {
-        if(:access(_GPIO_PATHS[i], X_OK) == 0) {
+        if(::access(_GPIO_PATHS[i], X_OK) == 0) {
             _gpioProgPath = _GPIO_PATHS[i];
             return;
         }
