@@ -1,5 +1,5 @@
 
-#include "../include/InterruptHandler.h"
+#include "../include/RpiInterrupter.h"
 #include <functional>
 #include <iostream>
 #include <thread>
@@ -13,10 +13,10 @@ void onInterrupt() {
 
 int main() {
 
-    InterruptHandler::init();
-    InterruptHandler::attachInterrupt(
+    RpiInterrupter::init();
+    RpiInterrupter::attachInterrupt(
         8,
-        InterruptHandler::Edge::FALLING,
+        RpiInterrupter::Edge::FALLING,
         std::function<void()>(&onInterrupt));
 
     while(true) {

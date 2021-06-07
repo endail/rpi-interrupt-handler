@@ -20,24 +20,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef _INTERRUPT_HANDLER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
-#define _INTERRUPT_HANDLER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
+#ifndef _RPI_INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
+#define _RPI_INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
 
 #include <string>
 #include <vector>
 #include <functional>
 #include <thread>
+#include <mutex>
 
 //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1924-L2081
 
 namespace endail {
-
-typedef std::function<void()> _INTERRUPT_CALLBACK;
-typedef std::function<void()> _ERROR_CALLBACK;
-
-class InterruptHandler {
-
+class RpiInterrupter {
 public:
+
+    typedef std::function<void()> INTERRUPT_CALLBACK;
+
     enum class Edge {
         NONE = 0,
         RISING = 1,
@@ -45,61 +44,55 @@ public:
         BOTH = 3
     };
 
-protected:
-
     struct EdgeConfig {
     public:
-        int gpioPin;
-        Edge edgeType;
-        _INTERRUPT_CALLBACK onInterrupt;
-        int pinValEvFd;
-        int cancelEvFd;
+        const int gpioPin;
+        const Edge edgeType;
+        INTERRUPT_CALLBACK onInterrupt;
+        int pinValEvFd = -1;
+        int cancelEvFd = -1;
 
-        EdgeConfig(
-            int pin,
-            Edge e,
-            _INTERRUPT_CALLBACK cb)
-                :   gpioPin(pin),
-                    edgeType(e),
-                    onInterrupt(cb),
-                    pinValEvFd(-1),
-                    cancelEvFd(-1) {
-        }
+        EdgeConfig(const int pin, const Edge e, INTERRUPT_CALLBACK cb)
+            :   gpioPin(pin),
+                edgeType(e),
+                onInterrupt(cb) { }
 
     };
 
-    typedef std::vector<EdgeConfig>::iterator _EDGE_CONF_ITER;
-
-    static const char* const EDGE_TO_STR[];
-    static const char* const GPIO_PATHS[];
-
-    static std::string _gpio_prog;
-    static std::vector<EdgeConfig> _configs;
-    InterruptHandler() { }
-
-    static void _set_gpio_pin(const int gpioPin, const Edge e);
-    static void _clear_interrupt(const int fd);
-    static _EDGE_CONF_ITER _get_config(const int gpioPin);
-    static void _setupInterrupt(EdgeConfig e);
-    static std::string _edgeToStr(const Edge e);
-    static std::string _getClassNodePath(const int gpioPin);
-    static void _watchPin(EdgeConfig* const e);
-    static void _stopWatching(EdgeConfig* const e);
-
-
-public:
     static void init();
+    static const std::vector<EdgeConfig>& getInterrupts();
+    static void removeInterrupt(const int gpioPin);
     static void attachInterrupt(
         int gpioPin,
         Edge type,
-        _INTERRUPT_CALLBACK onInterrupt);
-    static void removeInterrupt(const int gpioPin);
+        INTERRUPT_CALLBACK onInterrupt);
 
-    //return a vector of... structs?
-    //with gpio pin, edge type, and callback func?
-    static const std::vector<EdgeConfig>& getInterrupts() {
-        return _configs;
-    }
+
+protected:
+
+    typedef std::vector<EdgeConfig>::iterator _EDGE_CONF_ITER;
+
+    static const char* const _EDGE_STRINGS[];
+    static const char* const _GPIO_PATHS[];
+    static const char* _gpioProgPath;
+
+    static std::vector<EdgeConfig> _configs;
+    static std::mutex _configVecMtx;
+
+    RpiInterrupter();
+    virtual ~RpiInterrupter() = default;
+
+    static const char* const _edgeToStr(const Edge e);
+    static std::string _getClassNodePath(const int gpioPin);
+
+    static void _set_gpio_interrupt(const int gpioPin, const Edge e);
+    static void _clear_gpio_interrupt(const int fd);
+
+    static _EDGE_CONF_ITER _get_config(const int gpioPin);
+
+    static void _setupInterrupt(EdgeConfig e);
+    static void _watchPinValue(EdgeConfig* const e);
+    static void _stopWatching(EdgeConfig* const e);
 
 };
 };
