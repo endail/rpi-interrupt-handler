@@ -234,15 +234,17 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
 void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
 
     int epollFd;
-    struct epoll_event inevent;
+    struct epoll_event valevin;
+    struct epoll_event canevin;
     struct epoll_event outevent;
 
-    inevent.events = EPOLLPRI | EPOLLWAKEUP;
+    valevin.events = EPOLLPRI | EPOLLWAKEUP;
+    canevin.events = EPOLLPRI | EPOLLWAKEUP;
 
     if(!(
         (epollFd = ::epoll_create(2)) >= 0 &&
-        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->pinValEvFd, &inevent) == 0 &&
-        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->cancelEvFd, &inevent) == 0
+        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->pinValEvFd, &valevin) == 0 &&
+        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->cancelEvFd, &canevin) == 0
         )) {
             //something has gone horribly wrong
             //cannot wait for cancel event; must clean up now

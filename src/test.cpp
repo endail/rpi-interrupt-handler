@@ -2,7 +2,8 @@
 #include "../include/RpiInterrupter.h"
 #include <functional>
 #include <iostream>
-#include <thread>
+#include <unistd.h>
+#include <climits>
 
 using namespace std;
 using namespace endail;
@@ -17,10 +18,10 @@ int main() {
     RpiInterrupter::attachInterrupt(
         8,
         RpiInterrupter::Edge::FALLING,
-        std::function<void()>(&onInterrupt));
+        std::function<void()>(onInterrupt));
 
     while(true) {
-        std::this_thread::yield();
+        ::sleep(UINT_MAX);
     }
 
     return 0;
