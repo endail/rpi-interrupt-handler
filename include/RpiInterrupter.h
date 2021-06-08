@@ -20,8 +20,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef _RPI_INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
-#define _RPI_INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
+#ifndef RPI_INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
+#define RPI_INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
 
 #include <string>
 #include <vector>
@@ -90,7 +90,6 @@ protected:
     static void _set_gpio_interrupt(const int gpioPin, const Edge e);
     static void _clear_gpio_interrupt(const int fd);
 
-    //TODO: change iter to pointer?
     static _EDGE_CONF_ITER _get_config(const int gpioPin);
 
     static void _setupInterrupt(EdgeConfig e);
