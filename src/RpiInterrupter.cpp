@@ -218,9 +218,9 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
     }
 
     //create event fd for cancelling the thread watch routine
-    if((e.cancelEvFd = ::eventfd(0, EFD_SEMAPHORE)) < 0) {
-        throw std::runtime_error("failed to setup interrupt");
-    }
+    //if((e.cancelEvFd = ::eventfd(0, EFD_SEMAPHORE)) < 0) {
+    //    throw std::runtime_error("failed to setup interrupt");
+    //}
 
     //at this point, wiringpi appears to "clear" an interrupt
     //merely by reading the value file to the end?
@@ -236,12 +236,17 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
 void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
 
     int epollFd;
-    struct epoll_event valevin;
-    struct epoll_event canevin;
-    struct epoll_event outevent;
+    struct epoll_event valevin = {0};
+    struct epoll_event canevin = {0};
+    struct epoll_event outevent = {0};
 
-    valevin.events = EPOLLPRI | EPOLLWAKEUP;
-    canevin.events = EPOLLPRI | EPOLLWAKEUP;
+    e->cancelEvFd = ::eventfd(0, EFD_NONBLOCK | EFD_SEMAPHORE);
+
+    valevin.events = EPOLLPRI | EPOLLWAKEUP | EPOLLIN;
+    canevin.events = EPOLLHUP | EPOLLIN;
+
+    valevin.data.fd = e->pinValEvFd;
+    canevin.data.fd = e->cancelEvFd;
 
     if(!(
         (epollFd = ::epoll_create(2)) >= 0 &&
@@ -300,8 +305,7 @@ void RpiInterrupter::_stopWatching(RpiInterrupter::EdgeConfig* const e) {
     //https://man7.org/linux/man-pages/man2/eventfd.2.html
     //this will raise an event on the fd which will be picked up
     //by epoll_wait
-    const uint8_t buf = 1;
-    ::write(e->cancelEvFd, &buf, 1);
+    ::eventfd_write(e->cance, 1);
 }
 
 };
