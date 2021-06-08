@@ -34,6 +34,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <iostream>
+
 namespace endail {
 
 const char* const RpiInterrupter::_EDGE_STRINGS[] = {
@@ -248,6 +250,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
         )) {
             //something has gone horribly wrong
             //cannot wait for cancel event; must clean up now
+            std::cout << "epoll creation has failed" << std::endl;
             ::close(epollFd);
             removeInterrupt(e->gpioPin);
             return;
@@ -257,9 +260,13 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
 
         //maxevents set to 1 means only 1 fd will be processed
         //at a time - this is simpler!
+        std::cout << "epoll waiting" << std::endl;
         if(::epoll_wait(epollFd, &outevent, 1, -1) < 0) {
+            std::cout << "epoll failed" << std::endl;
             continue;
         }
+
+        std::cout << "epoll success" << std::endl;
 
         //check if the fd is the cancel event
         if(outevent.data.fd == e->cancelEvFd) {
