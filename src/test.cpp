@@ -12,11 +12,13 @@ void onInterrupt() {
     std::cout << "***interrupt***" << std::endl;
 }
 
-int main() {
+int main(int argc, char** argv) {
+
+    const int gpioPin = ::stoi(argv[1]);
 
     RpiInterrupter::init();
     RpiInterrupter::attachInterrupt(
-        8,
+        gpioPin,
         RpiInterrupter::Edge::FALLING,
         std::function<void()>(onInterrupt));
 
