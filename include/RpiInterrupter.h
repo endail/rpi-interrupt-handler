@@ -24,7 +24,7 @@
 #define RPI_INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
 
 #include <string>
-#include <vector>
+#include <list>
 #include <functional>
 #include <thread>
 #include <mutex>
@@ -62,7 +62,7 @@ public:
     };
 
     static void init();
-    static const std::vector<EdgeConfig>& getInterrupts();
+    static const std::list<EdgeConfig>& getInterrupts();
     static void removeInterrupt(const int gpioPin);
     static void attachInterrupt(
         int gpioPin,
@@ -72,13 +72,13 @@ public:
 
 protected:
 
-    typedef std::vector<EdgeConfig>::iterator _EDGE_CONF_ITER;
+    typedef std::list<EdgeConfig>::iterator _EDGE_CONF_ITER;
 
     static const char* const _EDGE_STRINGS[];
     static const char* const _GPIO_PATHS[];
     static const char* _gpioProgPath;
 
-    static std::vector<EdgeConfig> _configs;
+    static std::list<EdgeConfig> _configs;
     static std::mutex _configVecMtx;
 
     RpiInterrupter();

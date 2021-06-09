@@ -51,7 +51,7 @@ const char* const RpiInterrupter::_GPIO_PATHS[] = {
 };
 
 const char* RpiInterrupter::_gpioProgPath;
-std::vector<RpiInterrupter::EdgeConfig> RpiInterrupter::_configs;
+std::list<RpiInterrupter::EdgeConfig> RpiInterrupter::_configs;
 std::mutex RpiInterrupter::_configVecMtx;
 
 void RpiInterrupter::init() {
@@ -67,7 +67,7 @@ void RpiInterrupter::init() {
 
 }
 
-const std::vector<RpiInterrupter::EdgeConfig>& RpiInterrupter::getInterrupts() {
+const std::list<RpiInterrupter::EdgeConfig>& RpiInterrupter::getInterrupts() {
     return _configs;
 }
 
@@ -213,7 +213,7 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
         .append("/value");
 
     //open file to watch for value change
-    if((e.pinValEvFd = ::open(pinValPath.c_str(), O_RDWR)) < 0) {
+    if((e.pinValEvFd = ::open(pinValPath.c_str(), O_RDONLY)) < 0) {
         throw std::runtime_error("failed to setup interrupt");
     }
 
@@ -226,10 +226,15 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
     //merely by reading the value file to the end?
     _clear_gpio_interrupt(e.pinValEvFd);
 
+    std::unique_lock<std::mutex> lck(_configVecMtx);
+
     _configs.push_back(e);
+    EdgeConfig* ptr = &_configs.back();
+    
+    lck.unlock();
 
     //spawn a thread and let it watch for the pin value change
-    std::thread(&RpiInterrupter::_watchPinValue, &e).detach();
+    std::thread(&RpiInterrupter::_watchPinValue, ptr).detach();
 
 }
 
@@ -242,7 +247,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
 
     e->cancelEvFd = ::eventfd(0, EFD_NONBLOCK | EFD_SEMAPHORE);
 
-    valevin.events = EPOLLPRI | EPOLLWAKEUP | EPOLLIN;
+    valevin.events = EPOLLPRI | EPOLLWAKEUP;
     canevin.events = EPOLLHUP | EPOLLIN;
 
     valevin.data.fd = e->pinValEvFd;
@@ -305,7 +310,7 @@ void RpiInterrupter::_stopWatching(RpiInterrupter::EdgeConfig* const e) {
     //https://man7.org/linux/man-pages/man2/eventfd.2.html
     //this will raise an event on the fd which will be picked up
     //by epoll_wait
-    ::eventfd_write(e->cance, 1);
+    ::eventfd_write(e->cancelEvFd, 1);
 }
 
 };

@@ -19,8 +19,8 @@ int main(int argc, char** argv) {
     RpiInterrupter::init();
     RpiInterrupter::attachInterrupt(
         gpioPin,
-        RpiInterrupter::Edge::FALLING,
-        std::function<void()>(onInterrupt));
+        RpiInterrupter::Edge::BOTH,
+        std::function<void()>(&onInterrupt));
 
     while(true) {
         std::cout << "main thread sleeping" << std::endl;
