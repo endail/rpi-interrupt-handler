@@ -37,6 +37,11 @@ public:
 
     typedef std::function<void()> INTERRUPT_CALLBACK;
 
+    enum class Direction {
+        IN = 0,
+        OUT = 1
+    };
+
     enum class Edge {
         NONE = 0,
         RISING = 1,
@@ -74,6 +79,7 @@ protected:
 
     static const char* const _EDGE_STRINGS[];
     static const char* const _GPIO_PATHS[];
+    static const char* const _DIRECTION_STRINGS[]
     static const char* _gpioProgPath;
 
     static std::list<EdgeConfig> _configs;
@@ -83,10 +89,24 @@ protected:
     virtual ~RpiInterrupter() = default;
 
     static const char* const _edgeToStr(const Edge e);
+    static const char* const _directionToStr(const Direction d);
     static std::string _getClassNodePath(const int gpioPin);
 
     static void _set_gpio_interrupt(const int gpioPin, const Edge e);
     static void _clear_gpio_interrupt(const int fd);
+
+    static void _export_gpio(const int gpioPin);
+    static void _export_gpio(const int gpioPin, const int fd);
+    static void _unexport_gpio(const int gpioPin);
+    static void _unexport_gpio(const int gpioPin, const int fd);
+    static void _set_gpio_direction(const int gpioPin, const Direction d);
+    static void _set_gpio_direction(const Direction d, const int fd);
+    static void _set_gpio_edge(const int gpioPin, const Edge e);
+    static void _set_gpio_edge(const Edge e, const int fd);
+    static bool _get_gpio_value(const int gpioPin);
+    static bool _get_gpio_value_fd(const int fd);
+    static void _set_gpio_value(const int gpioPin, const bool v);
+    static void _set_gpio_value(const bool v, const int fd);
 
     static EdgeConfig* _get_config(const int gpioPin);
 

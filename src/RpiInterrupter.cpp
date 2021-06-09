@@ -48,6 +48,11 @@ const char* const RpiInterrupter::_GPIO_PATHS[] = {
     "/usr/local/bin/gpio"
 };
 
+const char* const RpiInterrupter::_DIRECTION_STRINGS[] = {
+    "in",
+    "out"
+};
+
 const char* RpiInterrupter::_gpioProgPath;
 std::list<RpiInterrupter::EdgeConfig> RpiInterrupter::_configs;
 std::mutex RpiInterrupter::_configMtx;
@@ -134,6 +139,10 @@ const char* const RpiInterrupter::_edgeToStr(const Edge e) {
     return _EDGE_STRINGS[static_cast<uint8_t>(e)];
 }
 
+const char* const RpiInterrupter::_directionToStr(const Direction d) {
+    return _DIRECTION_STRINGS[static_cast<uint8_t>(d)];
+}
+
 std::string RpiInterrupter::_getClassNodePath(const int gpioPin) {
     return std::string("/sys/class/gpio/gpio").append(
         std::to_string(gpioPin));
@@ -191,6 +200,96 @@ void RpiInterrupter::_clear_gpio_interrupt(const int fd) {
         }
     }
 
+}
+
+void RpiInterrupter::_export_gpio(const int gpioPin) {
+    const int fd = ::open("/sys/class/gpio/export", O_WRONLY);
+    _export_gpio(gpioPin, fd);
+    ::close(fd);
+}
+
+void RpiInterrupter::_export_gpio(const int gpioPin, const int fd) {
+    const std::string pinStr = std::to_string(gpioPin);
+    ::write(fd, pinStr.c_str(), pinStr.size());
+}
+
+void RpiInterrupter::_unexport_gpio(const int gpioPin) {
+    const int fd = ::open("/sys/class/gpio/unexport", O_WRONLY);
+    _unexport_gpio(gpioPin, fd);
+    ::close(fd);
+}
+
+void RpiInterrupter::_unexport_gpio(const int gpioPin, const int fd) {
+    const std::string pinStr = std::to_string(gpioPin);
+    ::write(fd, pinStr.c_str(), pinStr.size());
+}
+
+void RpiInterrupter::_set_gpio_direction(
+    const int gpioPin,
+    const RpiInterrupter::Direction d) {
+
+        const std::string path = _getClassNodePath(gpioPin).append("/direction");
+        const int fd = ::open(path.c_str(), O_WRONLY);
+        _set_gpio_direction(d, fd);
+        ::close(fd);
+
+}
+
+void RpiInterrupter::_set_gpio_direction(const RpiInterrupter::Direction d, const int fd) {
+    const char* const dirStr = _directionToStr(d);
+    ::write(fd, dirStr, ::strlen(dirStr));
+}
+
+static void _set_gpio_edge(const int gpioPin, const Edge e) {
+
+    const std::string path = _getClassNodePath(gpioPin).append("/edge");
+    const int fd = ::open(path.c_str(), O_WRONLY);
+    _set_gpio_edge(e, fd);
+    ::close(fd);
+
+}
+
+static void _set_gpio_edge(const Edge e, const int fd) {
+    const char* const edgeStr = _edgeToStr(e);
+    ::write(fd, edgeStr, ::strlen(edgeStr));
+}
+
+bool RpiInterrupter::_get_gpio_value(const int gpioPin) {
+
+    const std::string path = _getClassNodePath(gpioPin).append("/value");
+    const int fd = ::open(path.c_str(), O_RDONLY);
+    const bool v = _get_gpio_value_fd(fd);
+
+    ::close(fd);
+
+    return v;
+
+}
+
+bool RpiInterrupter::_get_gpio_value_fd(const int fd) {
+
+    char v;
+
+    ::read(fd, &v, sizeof(v));
+    ::lseek(fd, 0, SEEK_SET);
+
+    return v == '1' ? true : false;
+
+}
+
+void RpiInterrupter::_set_gpio_value(const int gpioPin, const bool v) {
+
+    const std::string path = _getClassNodePath(gpioPin).append("/value");
+    const int fd = ::open(path.c_str(), O_WRONLY);
+    const bool v = _set_gpio_value(v, fd);
+
+    ::close(fd);
+    
+}
+
+void RpiInterrupter::_set_gpio_value(const bool v, const int fd) {
+    ::write(fd, v ? '1' : '0', 1);
+    ::lseek(fd, 0, SEEK_SET);
 }
 
 RpiInterrupter::EdgeConfig* RpiInterrupter::_get_config(const int gpioPin) {
