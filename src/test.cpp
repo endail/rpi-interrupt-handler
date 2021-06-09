@@ -23,7 +23,6 @@ int main(int argc, char** argv) {
         std::function<void()>(&onInterrupt));
 
     while(true) {
-        std::cout << "main thread sleeping" << std::endl;
         ::sleep(UINT_MAX);
     }
 

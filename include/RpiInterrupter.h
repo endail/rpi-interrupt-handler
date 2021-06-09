@@ -72,14 +72,12 @@ public:
 
 protected:
 
-    typedef std::list<EdgeConfig>::iterator _EDGE_CONF_ITER;
-
     static const char* const _EDGE_STRINGS[];
     static const char* const _GPIO_PATHS[];
     static const char* _gpioProgPath;
 
     static std::list<EdgeConfig> _configs;
-    static std::mutex _configVecMtx;
+    static std::mutex _configMtx;
 
     RpiInterrupter();
     virtual ~RpiInterrupter() = default;
@@ -90,11 +88,11 @@ protected:
     static void _set_gpio_interrupt(const int gpioPin, const Edge e);
     static void _clear_gpio_interrupt(const int fd);
 
-    static _EDGE_CONF_ITER _get_config(const int gpioPin);
+    static EdgeConfig* _get_config(const int gpioPin);
 
     static void _setupInterrupt(EdgeConfig e);
     static void _watchPinValue(EdgeConfig* const e);
-    static void _stopWatching(EdgeConfig* const e);
+    static void _stopWatching(const EdgeConfig* const e);
 
 };
 };

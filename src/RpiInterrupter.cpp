@@ -34,8 +34,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <iostream>
-
 namespace endail {
 
 const char* const RpiInterrupter::_EDGE_STRINGS[] = {
@@ -52,7 +50,7 @@ const char* const RpiInterrupter::_GPIO_PATHS[] = {
 
 const char* RpiInterrupter::_gpioProgPath;
 std::list<RpiInterrupter::EdgeConfig> RpiInterrupter::_configs;
-std::mutex RpiInterrupter::_configVecMtx;
+std::mutex RpiInterrupter::_configMtx;
 
 void RpiInterrupter::init() {
 
@@ -73,7 +71,7 @@ const std::list<RpiInterrupter::EdgeConfig>& RpiInterrupter::getInterrupts() {
 
 void RpiInterrupter::removeInterrupt(const int gpioPin) {
 
-    std::lock_guard<std::mutex> lck(_configVecMtx);
+    std::lock_guard<std::mutex> lck(_configMtx);
 
     _EDGE_CONF_ITER it = _get_config(gpioPin);
 
@@ -110,14 +108,14 @@ void RpiInterrupter::attachInterrupt(
         //config and whether the existing pin config's edge type
         //is different from this edge type
 
-        std::unique_lock<std::mutex> lck(_configVecMtx);
+        std::unique_lock<std::mutex> lck(_configMtx);
 
-        const RpiInterrupter::_EDGE_CONF_ITER it = _get_config(gpioPin);
+        const RpiInterrupter::EdgeConfig* ptr = _get_config(gpioPin);
 
         //an existing config exists
         //and the edge type is either rising, falling, or both
         //and therefore cannot be overwritten
-        if(it != _configs.end() && it->edgeType != RpiInterrupter::Edge::NONE) {
+        if(ptr != nullptr && ptr->edgeType != RpiInterrupter::Edge::NONE) {
             throw std::invalid_argument("interrupt already set");
         }
 
@@ -195,13 +193,15 @@ void RpiInterrupter::_clear_gpio_interrupt(const int fd) {
 
 }
 
-RpiInterrupter::_EDGE_CONF_ITER RpiInterrupter::_get_config(const int gpioPin) {
+RpiInterrupter::EdgeConfig* RpiInterrupter::_get_config(const int gpioPin) {
 
-    return std::find_if(
+    auto it = std::find_if(
         _configs.begin(),
         _configs.end(), 
         [gpioPin](const RpiInterrupter::EdgeConfig& e) {
             return e.gpioPin == gpioPin; });
+
+    return it != _configs.end() ? &(*it) : nullptr;
 
 }
 
@@ -218,18 +218,18 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
     }
 
     //create event fd for cancelling the thread watch routine
-    //if((e.cancelEvFd = ::eventfd(0, EFD_SEMAPHORE)) < 0) {
-    //    throw std::runtime_error("failed to setup interrupt");
-    //}
+    if((e.cancelEvFd = ::eventfd(0, EFD_SEMAPHORE)) < 0) {
+        throw std::runtime_error("failed to setup interrupt");
+    }
 
     //at this point, wiringpi appears to "clear" an interrupt
     //merely by reading the value file to the end?
     _clear_gpio_interrupt(e.pinValEvFd);
 
-    std::unique_lock<std::mutex> lck(_configVecMtx);
+    std::unique_lock<std::mutex> lck(_configMtx);
 
     _configs.push_back(e);
-    EdgeConfig* ptr = &_configs.back();
+    EdgeConfig* const ptr = &_configs.back();
     
     lck.unlock();
 
@@ -245,8 +245,6 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
     struct epoll_event canevin = {0};
     struct epoll_event outevent = {0};
 
-    e->cancelEvFd = ::eventfd(0, EFD_NONBLOCK | EFD_SEMAPHORE);
-
     valevin.events = EPOLLPRI | EPOLLWAKEUP;
     canevin.events = EPOLLHUP | EPOLLIN;
 
@@ -260,7 +258,6 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
         )) {
             //something has gone horribly wrong
             //cannot wait for cancel event; must clean up now
-            std::cout << "epoll creation has failed" << std::endl;
             ::close(epollFd);
             removeInterrupt(e->gpioPin);
             return;
@@ -268,15 +265,13 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
 
     while(true) {
 
+        outevent = {0};
+
         //maxevents set to 1 means only 1 fd will be processed
         //at a time - this is simpler!
-        std::cout << "epoll waiting" << std::endl;
         if(::epoll_wait(epollFd, &outevent, 1, -1) < 0) {
-            std::cout << "epoll failed" << std::endl;
             continue;
         }
-
-        std::cout << "epoll success" << std::endl;
 
         //check if the fd is the cancel event
         if(outevent.data.fd == e->cancelEvFd) {
@@ -306,7 +301,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
 
 }
 
-void RpiInterrupter::_stopWatching(RpiInterrupter::EdgeConfig* const e) {
+void RpiInterrupter::_stopWatching(const RpiInterrupter::EdgeConfig* const e) {
     //https://man7.org/linux/man-pages/man2/eventfd.2.html
     //this will raise an event on the fd which will be picked up
     //by epoll_wait
