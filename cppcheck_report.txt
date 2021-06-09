@@ -1,4 +1,7 @@
-src/RpiInterrupter.cpp:70:0: style: The function 'getInterrupts' is never used. [unusedFunction]
+src/RpiInterrupter.cpp:246:33: style: Variable 'outevent' is assigned a value that is never used. [unreadVariable]
+    struct epoll_event outevent = {0};
+                                ^
+src/RpiInterrupter.cpp:68:0: style: The function 'getInterrupts' is never used. [unusedFunction]
 
 ^
 nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
