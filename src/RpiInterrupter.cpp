@@ -317,7 +317,7 @@ void RpiInterrupter::_remove_config(const RpiInterrupter::EdgeConfig* const e) {
         _configs.begin(),
         _configs.end(),
         [e](const RpiInterrupter::EdgeConfig& ec) {
-            return ec->gpioPin == e->gpioPin; });
+            return ec.gpioPin == e->gpioPin; });
 
     if(it != _configs.end()) {
         _configs.erase(it);
