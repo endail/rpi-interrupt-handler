@@ -16,7 +16,6 @@ int main(int argc, char** argv) {
 
     const int gpioPin = ::stoi(argv[1]);
 
-    RpiInterrupter::init();
     RpiInterrupter::attachInterrupt(
         gpioPin,
         RpiInterrupter::Edge::BOTH,

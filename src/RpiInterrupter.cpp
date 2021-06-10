@@ -53,8 +53,29 @@ const char* const RpiInterrupter::_DIRECTION_STRINGS[] = {
 
 std::list<RpiInterrupter::EdgeConfig> RpiInterrupter::_configs;
 std::mutex RpiInterrupter::_configMtx;
+RpiInterrupter::_exportFd;
+RpiInterrupter::_unexportFd;
 
 void RpiInterrupter::init() {
+
+    const std::string base = std::string(_GPIO_SYS_PATH);
+
+    RpiInterrupter::_exportFd = ::open(
+        base.append("/export").c_str(),
+        O_WRONLY);
+
+    if(RpiInterrupter::_exportFd < 0) {
+        throw std::runtime_error("unable to export gpio pins");
+    }
+
+    RpiInterrupter::_unexportFd = ::open(
+        base.append("/unexport").c_str(),
+        O_WRONLY);
+
+    if(RpiInterrupter::_unexportFd < 0) {
+        throw std::runtime_error("unable to unexport gpio pins");
+    }
+
 }
 
 const std::list<RpiInterrupter::EdgeConfig>& RpiInterrupter::getInterrupts() {
@@ -128,7 +149,7 @@ std::string RpiInterrupter::_getClassNodePath(const int gpioPin) {
 void RpiInterrupter::_set_gpio_interrupt(
     const int gpioPin,
     const RpiInterrupter::Edge e) {
-        _export_gpio(gpioPin);
+        _export_gpio(gpioPin, RpiInterrupter::_exportFd);
         _set_gpio_direction(gpioPin, Direction::IN);
         _set_gpio_edge(gpioPin, e);
 }
@@ -382,6 +403,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
             return;
     }
 
+    //thread loop
     while(true) {
 
         //reset the outevent struct

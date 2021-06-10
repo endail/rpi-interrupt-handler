@@ -49,6 +49,7 @@ public:
         BOTH = 3
     };
 
+    //TODO: add some debouncing?
     struct EdgeConfig {
     public:
         int gpioPin;
@@ -63,7 +64,7 @@ public:
             :   gpioPin(pin),
                 edgeType(e),
                 onInterrupt(cb) { }
-
+        
     };
 
     static void init();
@@ -83,6 +84,8 @@ protected:
 
     static std::list<EdgeConfig> _configs;
     static std::mutex _configMtx;
+    static int _exportFd;
+    static int _unexportFd;
 
     RpiInterrupter();
     virtual ~RpiInterrupter() = default;
