@@ -288,7 +288,9 @@ void RpiInterrupter::_set_gpio_value(const int gpioPin, const bool v) {
 
 void RpiInterrupter::_set_gpio_value(const bool v, const int fd) {
     
-    if(::write(fd, v ? '1' : '0', 1) < 0) {
+    char b = v ? '1' : '0';
+
+    if(::write(fd, &b, 1) < 0) {
         throw std::runtime_error("failed to set pin value");
     }
     
