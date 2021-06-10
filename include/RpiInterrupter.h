@@ -77,10 +77,9 @@ public:
 
 protected:
 
+    static const char* const _GPIO_SYS_PATH;
     static const char* const _EDGE_STRINGS[];
-    static const char* const _GPIO_PATHS[];
     static const char* const _DIRECTION_STRINGS[];
-    static const char* _gpioProgPath;
 
     static std::list<EdgeConfig> _configs;
     static std::mutex _configMtx;
@@ -109,6 +108,7 @@ protected:
     static void _set_gpio_value(const bool v, const int fd);
 
     static EdgeConfig* _get_config(const int gpioPin);
+    static void _remove_config(const EdgeConfig* const e);
 
     static void _setupInterrupt(EdgeConfig e);
     static void _watchPinValue(EdgeConfig* const e);

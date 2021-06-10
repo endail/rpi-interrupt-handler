@@ -37,6 +37,8 @@
 
 namespace endail {
 
+const char* const RpiInterrupter::_GPIO_SYS_PATH = "/sys/class/gpio";
+
 const char* const RpiInterrupter::_EDGE_STRINGS[] = {
     "none",
     "rising",
@@ -44,33 +46,15 @@ const char* const RpiInterrupter::_EDGE_STRINGS[] = {
     "both"
 };
 
-const char* const RpiInterrupter::_GPIO_PATHS[] = {
-    "/usr/bin/gpio",
-    "/usr/local/bin/gpio"
-};
-
 const char* const RpiInterrupter::_DIRECTION_STRINGS[] = {
     "in",
     "out"
 };
 
-const char* RpiInterrupter::_gpioProgPath;
 std::list<RpiInterrupter::EdgeConfig> RpiInterrupter::_configs;
 std::mutex RpiInterrupter::_configMtx;
 
 void RpiInterrupter::init() {
-
-/*
-    for(uint8_t i = 0, l = sizeof(_GPIO_PATHS); i < l; ++i) {
-        if(::access(_GPIO_PATHS[i], X_OK) == 0) {
-            _gpioProgPath = _GPIO_PATHS[i];
-            return;
-        }
-    }
-
-    throw std::runtime_error("gpio program not found");
-*/
-
 }
 
 const std::list<RpiInterrupter::EdgeConfig>& RpiInterrupter::getInterrupts() {
@@ -79,9 +63,7 @@ const std::list<RpiInterrupter::EdgeConfig>& RpiInterrupter::getInterrupts() {
 
 void RpiInterrupter::removeInterrupt(const int gpioPin) {
 
-    std::lock_guard<std::mutex> lck(_configMtx);
-
-    EdgeConfig* c = _get_config(gpioPin);
+    const EdgeConfig* const c = _get_config(gpioPin);
 
     if(c == nullptr) {
         return;
@@ -99,13 +81,7 @@ void RpiInterrupter::removeInterrupt(const int gpioPin) {
     ::close(c->pinValEvFd);
     ::close(c->cancelEvFd);
 
-    auto it = std::find(
-        _configs.begin(),
-        _configs.end(),
-        [gpioPin](const EdgeConfig cf) {
-            return cf.gpioPin == gpioPin; });
-
-    _configs.erase(it);
+    _remove_config(c);
 
 }
 
@@ -122,18 +98,9 @@ void RpiInterrupter::attachInterrupt(
         //config and whether the existing pin config's edge type
         //is different from this edge type
 
-        std::unique_lock<std::mutex> lck(_configMtx);
-
-        const RpiInterrupter::EdgeConfig* ptr = _get_config(gpioPin);
-
-        //an existing config exists
-        //and the edge type is either rising, falling, or both
-        //and therefore cannot be overwritten
-        if(ptr != nullptr && ptr->edgeType != RpiInterrupter::Edge::NONE) {
+        if(_get_config(gpioPin) != nullptr) {
             throw std::invalid_argument("interrupt already set");
         }
-
-        lck.unlock();
 
         RpiInterrupter::EdgeConfig e(gpioPin, type, onInterrupt);
 
@@ -153,94 +120,71 @@ const char* const RpiInterrupter::_directionToStr(const Direction d) {
 }
 
 std::string RpiInterrupter::_getClassNodePath(const int gpioPin) {
-    return std::string("/sys/class/gpio/gpio").append(
-        std::to_string(gpioPin));
+    return std::string(_GPIO_SYS_PATH)
+        .append("/gpio")
+        .append(std::to_string(gpioPin));
 }
 
 void RpiInterrupter::_set_gpio_interrupt(
     const int gpioPin,
     const RpiInterrupter::Edge e) {
-
         _export_gpio(gpioPin);
         _set_gpio_direction(gpioPin, Direction::IN);
         _set_gpio_edge(gpioPin, e);
-
-/*
-        const pid_t pid = ::fork();
-
-        if(pid < 0) {
-            throw std::runtime_error("failed to fork");
-        }
-
-        if(pid == 0) {
-
-            //run the gpio prog to setup an interrupt on the pin
-            ::execl(
-                _gpioProgPath,
-                "gpio",
-                "edge",
-                std::to_string(gpioPin).c_str(),
-                _edgeToStr(e),
-                nullptr);
-
-            //should not reach here
-            ::exit(EXIT_FAILURE);
-
-        }
-
-        //parent will wait for child
-        int status;
-        ::waitpid(pid, &status, 0);
-
-        //gpio prog will exit with 0 if successful
-        //https://github.com/WiringPi/WiringPi/blob/master/gpio/gpio.c#L1384
-        if(status != 0) {
-            throw std::runtime_error("failed to set gpio edge interrupt");
-        }
-*/
-
 }
 
 void RpiInterrupter::_clear_gpio_interrupt(const int fd) {
-
     _get_gpio_value_fd(fd);
-
-/*
-    int count;
-    uint8_t c;
-
-    ::lseek(fd, 0, SEEK_SET);
-    ::ioctl(fd, FIONREAD, &count);
-
-    for(int i = 0; i < count; ++i) {
-        if(::read(fd, &c, 1) < 0) {
-            break;
-        }
-    }
-*/
-
 }
 
 void RpiInterrupter::_export_gpio(const int gpioPin) {
-    const int fd = ::open("/sys/class/gpio/export", O_WRONLY);
+    
+    const std::string path = std::string(_GPIO_SYS_PATH).append("/export");
+    const int fd = ::open(path.c_str(), O_WRONLY);
+    
+    if(fd < 0) {
+        throw std::runtime_error("unable to export pin");
+    }
+
     _export_gpio(gpioPin, fd);
+    
     ::close(fd);
+
 }
 
 void RpiInterrupter::_export_gpio(const int gpioPin, const int fd) {
+    
     const std::string pinStr = std::to_string(gpioPin);
-    ::write(fd, pinStr.c_str(), pinStr.size());
+    
+    if(::write(fd, pinStr.c_str(), pinStr.size()) < 0) {
+        throw std::runtime_error("pin export failed");
+    }
+
 }
 
 void RpiInterrupter::_unexport_gpio(const int gpioPin) {
-    const int fd = ::open("/sys/class/gpio/unexport", O_WRONLY);
+    
+    const std::string path = std::string(_GPIO_SYS_PATH).append("/unexport");
+    const int fd = ::open(path.c_str(), O_WRONLY);
+    
+    if(fd < 0) {
+        throw std::runtime_error("unable to unexport pin");
+    }
+
     _unexport_gpio(gpioPin, fd);
+    
     ::close(fd);
+
 }
 
 void RpiInterrupter::_unexport_gpio(const int gpioPin, const int fd) {
+    
     const std::string pinStr = std::to_string(gpioPin);
-    ::write(fd, pinStr.c_str(), pinStr.size());
+    
+    if(::write(fd, pinStr.c_str(), pinStr.size()) < 0) {
+        throw std::runtime_error("pin unexport failed");
+    }
+
 }
 
 void RpiInterrupter::_set_gpio_direction(
@@ -249,34 +193,61 @@ void RpiInterrupter::_set_gpio_direction(
 
         const std::string path = _getClassNodePath(gpioPin).append("/direction");
         const int fd = ::open(path.c_str(), O_WRONLY);
+
+        if(fd < 0) {
+            throw std::runtime_error("unable to change gpio direction");
+        }
+
         _set_gpio_direction(d, fd);
+
         ::close(fd);
 
 }
 
 void RpiInterrupter::_set_gpio_direction(const RpiInterrupter::Direction d, const int fd) {
+    
     const char* const dirStr = _directionToStr(d);
-    ::write(fd, dirStr, ::strlen(dirStr));
+    
+    if(::write(fd, dirStr, ::strlen(dirStr)) < 0) {
+        throw std::runtime_error("pin direction change failed");
+    }
+
 }
 
 static void RpiInterrupter::_set_gpio_edge(const int gpioPin, const RpiInterrupter::Edge e) {
-
+    
     const std::string path = _getClassNodePath(gpioPin).append("/edge");
     const int fd = ::open(path.c_str(), O_WRONLY);
+    
+    if(fd < 0) {
+        throw std::runtime_error("unable to change pin edge");
+    }
+
     _set_gpio_edge(e, fd);
+    
     ::close(fd);
 
 }
 
 static void RpiInterrupter::_set_gpio_edge(const RpiInterrupter::Edge e, const int fd) {
+    
     const char* const edgeStr = _edgeToStr(e);
-    ::write(fd, edgeStr, ::strlen(edgeStr));
+    
+    if(::write(fd, edgeStr, ::strlen(edgeStr)) < 0) {
+        throw std::runtime_error("failed to change gpio edge");
+    }
+
 }
 
 bool RpiInterrupter::_get_gpio_value(const int gpioPin) {
 
     const std::string path = _getClassNodePath(gpioPin).append("/value");
     const int fd = ::open(path.c_str(), O_RDONLY);
+    
+    if(fd < 0) {
+        throw std::runtime_error("unable to get pin value");
+    }
+    
     const bool v = _get_gpio_value_fd(fd);
 
     ::close(fd);
@@ -286,29 +257,44 @@ bool RpiInterrupter::_get_gpio_value(const int gpioPin) {
 }
 
 bool RpiInterrupter::_get_gpio_value_fd(const int fd) {
-
+    
     char v;
-
-    ::read(fd, &v, sizeof(v));
+    
+    if(::read(fd, &v, 1) != 1) {
+        throw std::runtime_error("failed to get pin value");
+    }
+    
+    //don't test result of this
     ::lseek(fd, 0, SEEK_SET);
-
+    
     return v == '1' ? true : false;
 
 }
 
 void RpiInterrupter::_set_gpio_value(const int gpioPin, const bool v) {
-
+    
     const std::string path = _getClassNodePath(gpioPin).append("/value");
     const int fd = ::open(path.c_str(), O_WRONLY);
-    const bool v = _set_gpio_value(v, fd);
-
-    ::close(fd);
     
+    if(fd < 0) {
+        throw std::runtime_error("unable to set pin value");
+    }
+
+    _set_gpio_value(v, fd);
+    
+    ::close(fd);
+
 }
 
 void RpiInterrupter::_set_gpio_value(const bool v, const int fd) {
-    ::write(fd, v ? '1' : '0', 1);
+    
+    if(::write(fd, v ? '1' : '0', 1) < 0) {
+        throw std::runtime_error("failed to set pin value");
+    }
+    
+    //don't test return value of this
     ::lseek(fd, 0, SEEK_SET);
+
 }
 
 RpiInterrupter::EdgeConfig* RpiInterrupter::_get_config(const int gpioPin) {
@@ -320,6 +306,16 @@ RpiInterrupter::EdgeConfig* RpiInterrupter::_get_config(const int gpioPin) {
             return e.gpioPin == gpioPin; });
 
     return it != _configs.end() ? &(*it) : nullptr;
+
+}
+
+void RpiInterrupt::_remove_config(const EdgeConfig* const e) {
+
+    auto it = std::find(_configs.begin(), _configs.end(), *e);
+
+    if(it != _configs.end()) {
+        _configs.erase(it);
+    }
 
 }
 
@@ -344,11 +340,10 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
     //merely by reading the value file to the end?
     _clear_gpio_interrupt(e.pinValEvFd);
 
+    //need to grab the pointer to the config in the list
     std::unique_lock<std::mutex> lck(_configMtx);
-
     _configs.push_back(e);
     EdgeConfig* const ptr = &_configs.back();
-    
     lck.unlock();
 
     //spawn a thread and let it watch for the pin value change
@@ -364,7 +359,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
     struct epoll_event outevent = {0};
 
     valevin.events = EPOLLPRI | EPOLLWAKEUP;
-    canevin.events = EPOLLHUP | EPOLLIN;
+    canevin.events = EPOLLHUP | EPOLLIN | EPOLLWAKEUP;
 
     valevin.data.fd = e->pinValEvFd;
     canevin.data.fd = e->cancelEvFd;
@@ -383,6 +378,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
 
     while(true) {
 
+        //reset the outevent struct
         outevent = {0};
 
         //maxevents set to 1 means only 1 fd will be processed
