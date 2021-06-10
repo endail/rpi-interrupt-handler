@@ -214,7 +214,7 @@ void RpiInterrupter::_set_gpio_direction(const RpiInterrupter::Direction d, cons
 
 }
 
-static void RpiInterrupter::_set_gpio_edge(const int gpioPin, const RpiInterrupter::Edge e) {
+void RpiInterrupter::_set_gpio_edge(const int gpioPin, const RpiInterrupter::Edge e) {
     
     const std::string path = _getClassNodePath(gpioPin).append("/edge");
     const int fd = ::open(path.c_str(), O_WRONLY);
@@ -229,7 +229,7 @@ static void RpiInterrupter::_set_gpio_edge(const int gpioPin, const RpiInterrupt
 
 }
 
-static void RpiInterrupter::_set_gpio_edge(const RpiInterrupter::Edge e, const int fd) {
+void RpiInterrupter::_set_gpio_edge(const RpiInterrupter::Edge e, const int fd) {
     
     const char* const edgeStr = _edgeToStr(e);
     
