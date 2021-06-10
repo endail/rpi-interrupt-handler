@@ -81,7 +81,7 @@ void RpiInterrupter::removeInterrupt(const int gpioPin) {
     ::close(c->pinValEvFd);
     ::close(c->cancelEvFd);
 
-    _remove_config(c);
+    _remove_config(c->gpioPin);
 
 }
 
@@ -311,13 +311,13 @@ RpiInterrupter::EdgeConfig* RpiInterrupter::_get_config(const int gpioPin) {
 
 }
 
-void RpiInterrupter::_remove_config(const RpiInterrupter::EdgeConfig* const e) {
+void RpiInterrupter::_remove_config(const int gpioPin) {
 
     auto it = std::find_if(
         _configs.begin(),
         _configs.end(),
-        [e](const RpiInterrupter::EdgeConfig& ec) {
-            return ec.gpioPin == e->gpioPin; });
+        [gpioPin](const RpiInterrupter::EdgeConfig& ec) {
+            return ec.gpioPin == gpioPin; });
 
     if(it != _configs.end()) {
         _configs.erase(it);
