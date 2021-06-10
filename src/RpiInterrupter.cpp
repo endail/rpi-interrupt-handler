@@ -59,6 +59,7 @@ std::mutex RpiInterrupter::_configMtx;
 
 void RpiInterrupter::init() {
 
+/*
     for(uint8_t i = 0, l = sizeof(_GPIO_PATHS); i < l; ++i) {
         if(::access(_GPIO_PATHS[i], X_OK) == 0) {
             _gpioProgPath = _GPIO_PATHS[i];
@@ -67,6 +68,7 @@ void RpiInterrupter::init() {
     }
 
     throw std::runtime_error("gpio program not found");
+*/
 
 }
 
@@ -152,6 +154,11 @@ void RpiInterrupter::_set_gpio_interrupt(
     const int gpioPin,
     const RpiInterrupter::Edge e) {
 
+        _export_gpio(gpioPin);
+        _set_gpio_direction(gpioPin, Direction::IN);
+        _set_gpio_edge(gpioPin, e);
+
+/*
         const pid_t pid = ::fork();
 
         if(pid < 0) {
@@ -183,11 +190,15 @@ void RpiInterrupter::_set_gpio_interrupt(
         if(status != 0) {
             throw std::runtime_error("failed to set gpio edge interrupt");
         }
+*/
 
 }
 
 void RpiInterrupter::_clear_gpio_interrupt(const int fd) {
 
+    _get_gpio_value_fd(fd);
+
+/*
     int count;
     uint8_t c;
 
@@ -199,6 +210,7 @@ void RpiInterrupter::_clear_gpio_interrupt(const int fd) {
             break;
         }
     }
+*/
 
 }
 
