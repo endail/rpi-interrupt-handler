@@ -1,25 +1,25 @@
-src/RpiInterrupter.cpp:302:16: style: Local variable 'v' shadows outer argument [shadowArgument]
+src/RpiInterrupter.cpp:303:16: style: Local variable 'v' shadows outer argument [shadowArgument]
     const bool v = _set_gpio_value(v, fd);
                ^
-src/RpiInterrupter.cpp:298:68: note: Shadowed declaration
+src/RpiInterrupter.cpp:299:68: note: Shadowed declaration
 void RpiInterrupter::_set_gpio_value(const int gpioPin, const bool v) {
                                                                    ^
-src/RpiInterrupter.cpp:302:16: note: Shadow variable
+src/RpiInterrupter.cpp:303:16: note: Shadow variable
     const bool v = _set_gpio_value(v, fd);
                ^
-src/RpiInterrupter.cpp:302:36: error: Uninitialized variable: v [uninitvar]
+src/RpiInterrupter.cpp:303:36: error: Uninitialized variable: v [uninitvar]
     const bool v = _set_gpio_value(v, fd);
                                    ^
-src/RpiInterrupter.cpp:302:18: style: Variable 'v' is assigned a value that is never used. [unreadVariable]
+src/RpiInterrupter.cpp:303:18: style: Variable 'v' is assigned a value that is never used. [unreadVariable]
     const bool v = _set_gpio_value(v, fd);
                  ^
-src/RpiInterrupter.cpp:363:33: style: Variable 'outevent' is assigned a value that is never used. [unreadVariable]
+src/RpiInterrupter.cpp:364:33: style: Variable 'outevent' is assigned a value that is never used. [unreadVariable]
     struct epoll_event outevent = {0};
                                 ^
-src/RpiInterrupter.cpp:275:0: style: The function '_get_gpio_value' is never used. [unusedFunction]
+src/RpiInterrupter.cpp:276:0: style: The function '_get_gpio_value' is never used. [unusedFunction]
 
 ^
-src/RpiInterrupter.cpp:75:0: style: The function 'getInterrupts' is never used. [unusedFunction]
+src/RpiInterrupter.cpp:76:0: style: The function 'getInterrupts' is never used. [unusedFunction]
 
 ^
 nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
