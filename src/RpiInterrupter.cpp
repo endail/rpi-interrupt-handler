@@ -23,6 +23,7 @@
 #include "../include/RpiInterrupter.h"
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <iterator>
 #include <stdexcept>
 #include <sys/epoll.h>
