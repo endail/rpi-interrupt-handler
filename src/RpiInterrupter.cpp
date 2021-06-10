@@ -311,7 +311,7 @@ RpiInterrupter::EdgeConfig* RpiInterrupter::_get_config(const int gpioPin) {
 
 }
 
-void RpiInterrupter::_remove_config(const RpiInterrupter::EdgeConfig* const e) {
+void RpiInterrupter::_remove_config(RpiInterrupter::EdgeConfig* const e) {
 
     auto it = std::find(_configs.begin(), _configs.end(), *e);
 

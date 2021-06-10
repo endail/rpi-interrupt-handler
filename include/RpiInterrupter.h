@@ -108,7 +108,7 @@ protected:
     static void _set_gpio_value(const bool v, const int fd);
 
     static EdgeConfig* _get_config(const int gpioPin);
-    static void _remove_config(const EdgeConfig* const e);
+    static void _remove_config(EdgeConfig* const e);
 
     static void _setupInterrupt(EdgeConfig e);
     static void _watchPinValue(EdgeConfig* const e);
