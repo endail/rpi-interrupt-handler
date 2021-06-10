@@ -79,7 +79,7 @@ protected:
 
     static const char* const _EDGE_STRINGS[];
     static const char* const _GPIO_PATHS[];
-    static const char* const _DIRECTION_STRINGS[]
+    static const char* const _DIRECTION_STRINGS[];
     static const char* _gpioProgPath;
 
     static std::list<EdgeConfig> _configs;
