@@ -80,14 +80,14 @@ void RpiInterrupter::removeInterrupt(const int gpioPin) {
 
     std::lock_guard<std::mutex> lck(_configMtx);
 
-    _EDGE_CONF_ITER it = _get_config(gpioPin);
+    EdgeConfig* c = _get_config(gpioPin);
 
-    if(it == _configs.end()) {
+    if(c == nullptr) {
         return;
     }
 
     //first, stop the thread watching the pin state
-    _stopWatching(&(*it));
+    _stopWatching(c);
 
     //second, use the gpio prog to "reset" the interrupt
     //condition
@@ -95,8 +95,14 @@ void RpiInterrupter::removeInterrupt(const int gpioPin) {
 
     //finally, close any open fds and remove the local
     //interrupt config
-    ::close(it->pinValEvFd);
-    ::close(it->cancelEvFd);
+    ::close(c->pinValEvFd);
+    ::close(c->cancelEvFd);
+
+    auto it = std::find(
+        _configs.begin(),
+        _configs.end(),
+        [gpioPin](const EdgeConfig cf) {
+            return cf.gpioPin == gpioPin; });
 
     _configs.erase(it);
 
