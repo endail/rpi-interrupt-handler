@@ -53,6 +53,7 @@ public:
         INTERRUPT_CALLBACK onInterrupt;
         int gpioPinValFd = -1;
         int cancelEvFd = -1;
+        bool enabled = true;
 
         EdgeConfig() = default;
 
@@ -67,6 +68,8 @@ public:
     static void close();
     static const std::list<EdgeConfig>& getInterrupts();
     static void removeInterrupt(const int gpioPin);
+    static void disableInterrupt(const int gpioPin);
+    static void enableInterrupt(const int gpioPin);
     static void attachInterrupt(
         int gpioPin,
         Edge type,

@@ -116,6 +116,20 @@ void RpiInterrupter::removeInterrupt(const int gpioPin) {
 
 }
 
+void RpiInterrupter::disableInterrupt(const int gpioPin) {
+    EdgeConfig* c = _get_config(gpioPin);
+    if(c != nullptr) {
+        c->enabled = false;
+    }
+}
+
+void RpiInterruper::enableInterrupt(const int gpioPin) {
+    EdgeConfig* c = _get_config(gpioPin);
+    if(c != nullptr) {
+        c->enabled = true;
+    }
+}
+
 void RpiInterrupter::attachInterrupt(
     int gpioPin,
     RpiInterrupter::Edge type,
@@ -367,7 +381,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
     int epollFd;
     struct epoll_event valevin = {0};
     struct epoll_event canevin = {0};
-    struct epoll_event outevent = {0};
+    struct epoll_event outevent;
 
     valevin.events = EPOLLPRI | EPOLLWAKEUP;
     canevin.events = EPOLLHUP | EPOLLIN | EPOLLWAKEUP;
@@ -391,7 +405,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
     while(true) {
 
         //reset the outevent struct
-        outevent = {0};
+        ::memset(&outevent, 0, sizeof(outevent));
 
         //maxevents set to 1 means only 1 fd will be processed
         //at a time - this is simpler!
@@ -417,7 +431,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
             //exceptions arising from user code and should
             //ignore them for the sake of efficiency
             try {
-                if(e->onInterrupt) {
+                if(e->onInterrupt && e->enabled) {
                     e->onInterrupt();
                 }
             }
