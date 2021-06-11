@@ -77,7 +77,7 @@ test: $(BUILDDIR)/test.o
 		-o $(BINDIR)/test \
 		$(BUILDDIR)/test.o \
 		$(BUILDDIR)/Interrupter.o \
-		$(LIBS)
+		$(LIBS) -lwiringPi
 
 .PHONY: clean
 clean:
