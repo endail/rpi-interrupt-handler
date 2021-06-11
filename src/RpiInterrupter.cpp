@@ -88,7 +88,7 @@ void RpiInterrupter::close() {
 
 }
 
-const std::list<RpiInterrupter::EdgeConfig>& RpiInterrupter::getInterrupts() {
+const std::list<RpiInterrupter::EdgeConfig>& RpiInterrupter::getInterrupts() noexcept {
     return _configs;
 }
 
@@ -117,17 +117,27 @@ void RpiInterrupter::removeInterrupt(const int gpioPin) {
 }
 
 void RpiInterrupter::disableInterrupt(const int gpioPin) {
+    
     EdgeConfig* c = _get_config(gpioPin);
-    if(c != nullptr) {
-        c->enabled = false;
+    
+    if(c == nullptr) {
+        throw std::runtime_error("interrupt does not exist");
     }
+
+    c->enabled = false;
+
 }
 
 void RpiInterrupter::enableInterrupt(const int gpioPin) {
+    
     EdgeConfig* c = _get_config(gpioPin);
-    if(c != nullptr) {
-        c->enabled = true;
+    
+    if(c == nullptr) {
+        throw std::runtime_error("interrupt does not exist");
     }
+    
+    c->enabled = true;
+
 }
 
 void RpiInterrupter::attachInterrupt(
@@ -153,18 +163,18 @@ void RpiInterrupter::attachInterrupt(
 
 }
 
-RpiInterrupter::RpiInterrupter() {
+RpiInterrupter::RpiInterrupter() noexcept {
 }
 
-const char* const RpiInterrupter::_edgeToStr(const Edge e) {
+const char* const RpiInterrupter::_edgeToStr(const Edge e) noexcept {
     return _EDGE_STRINGS[static_cast<uint8_t>(e)];
 }
 
-const char* const RpiInterrupter::_directionToStr(const Direction d) {
+const char* const RpiInterrupter::_directionToStr(const Direction d) noexcept {
     return _DIRECTION_STRINGS[static_cast<uint8_t>(d)];
 }
 
-std::string RpiInterrupter::_getClassNodePath(const int gpioPin) {
+std::string RpiInterrupter::_getClassNodePath(const int gpioPin) noexcept {
     return std::string(_GPIO_SYS_PATH)
         .append("/gpio")
         .append(std::to_string(gpioPin));
@@ -317,7 +327,7 @@ bool RpiInterrupter::_get_gpio_value_fd(const int fd) {
 
 }
 
-RpiInterrupter::EdgeConfig* RpiInterrupter::_get_config(const int gpioPin) {
+RpiInterrupter::EdgeConfig* RpiInterrupter::_get_config(const int gpioPin) noexcept {
 
     auto it = std::find_if(
         _configs.begin(),
@@ -329,7 +339,7 @@ RpiInterrupter::EdgeConfig* RpiInterrupter::_get_config(const int gpioPin) {
 
 }
 
-void RpiInterrupter::_remove_config(const int gpioPin) {
+void RpiInterrupter::_remove_config(const int gpioPin) noexcept {
 
     auto it = std::find_if(
         _configs.begin(),
@@ -376,7 +386,7 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
 
 }
 
-void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
+void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) noexcept {
 
     int epollFd;
     struct epoll_event valevin = {0};
@@ -396,8 +406,12 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
         )) {
             //something has gone horribly wrong
             //cannot wait for cancel event; must clean up now
-            ::close(epollFd);
-            removeInterrupt(e->gpioPin);
+            //ignore exceptions; thread cannot handle them
+            try {
+                ::close(epollFd);
+                removeInterrupt(e->gpioPin);
+            }
+            catch(...) { }
             return;
     }
 
@@ -424,8 +438,11 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
             
             //wiringpi does this to "reset" the interrupt
             //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1947-L1954
-            //TODO: should this go before or after the onInterrupt call?
-            _clear_gpio_interrupt(e->gpioPinValFd);
+            //should this go before or after the onInterrupt call?
+            try {
+                _clear_gpio_interrupt(e->gpioPinValFd);
+            }
+            catch(...) { }
 
             //handler is not responsible for dealing with
             //exceptions arising from user code and should
@@ -443,7 +460,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
 
 }
 
-void RpiInterrupter::_stopWatching(const RpiInterrupter::EdgeConfig* const e) {
+void RpiInterrupter::_stopWatching(const RpiInterrupter::EdgeConfig* const e) noexcept {
     //https://man7.org/linux/man-pages/man2/eventfd.2.html
     //this will raise an event on the fd which will be picked up
     //by epoll_wait

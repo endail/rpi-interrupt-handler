@@ -57,16 +57,13 @@ public:
 
         EdgeConfig() = default;
 
-        EdgeConfig(const int pin, const Edge e, INTERRUPT_CALLBACK cb)
-            :   gpioPin(pin),
-                edge(e),
-                onInterrupt(cb) { }
-        
+        EdgeConfig(const int pin, const Edge e, INTERRUPT_CALLBACK cb) noexcept
+            :   gpioPin(pin), edge(e), onInterrupt(cb) { }
     };
 
     static void init();
     static void close();
-    static const std::list<EdgeConfig>& getInterrupts();
+    static const std::list<EdgeConfig>& getInterrupts() noexcept;
     static void removeInterrupt(const int gpioPin);
     static void disableInterrupt(const int gpioPin);
     static void enableInterrupt(const int gpioPin);
@@ -87,12 +84,12 @@ protected:
     static int _exportFd;
     static int _unexportFd;
 
-    RpiInterrupter();
+    RpiInterrupter() noexcept;
     virtual ~RpiInterrupter() = default;
 
-    static const char* const _edgeToStr(const Edge e);
-    static const char* const _directionToStr(const Direction d);
-    static std::string _getClassNodePath(const int gpioPin);
+    static const char* const _edgeToStr(const Edge e) noexcept;
+    static const char* const _directionToStr(const Direction d) noexcept;
+    static std::string _getClassNodePath(const int gpioPin) noexcept;
 
     static void _set_gpio_interrupt(const int gpioPin, const Edge e);
     static void _clear_gpio_interrupt(const int fd);
@@ -108,12 +105,12 @@ protected:
     static bool _get_gpio_value(const int gpioPin);
     static bool _get_gpio_value_fd(const int fd);
 
-    static EdgeConfig* _get_config(const int gpioPin);
-    static void _remove_config(const int gpioPin);
+    static EdgeConfig* _get_config(const int gpioPin) noexcept;
+    static void _remove_config(const int gpioPin) noexcept;
 
     static void _setupInterrupt(EdgeConfig e);
-    static void _watchPinValue(EdgeConfig* const e);
-    static void _stopWatching(const EdgeConfig* const e);
+    static void _watchPinValue(EdgeConfig* const e) noexcept;
+    static void _stopWatching(const EdgeConfig* const e) noexcept;
 
 };
 };
