@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "../include/RpiInterrupter.h"
+#include "../include/Interrupter.h"
 #include <algorithm>
 #include <cstring>
 #include <iterator>
@@ -35,66 +35,66 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-namespace endail {
+namespace RpiGpioInterrupter {
 
-const char* const RpiInterrupter::_GPIO_SYS_PATH = "/sys/class/gpio";
+const char* const Interrupter::_GPIO_SYS_PATH = "/sys/class/gpio";
 
-const char* const RpiInterrupter::_EDGE_STRINGS[] = {
+const char* const Interrupter::_EDGE_STRINGS[] = {
     "none",
     "rising",
     "falling",
     "both"
 };
 
-const char* const RpiInterrupter::_DIRECTION_STRINGS[] = {
+const char* const Interrupter::_DIRECTION_STRINGS[] = {
     "in",
     "out"
 };
 
-std::list<RpiInterrupter::EdgeConfig> RpiInterrupter::_configs;
-std::mutex RpiInterrupter::_configMtx;
-int RpiInterrupter::_exportFd;
-int RpiInterrupter::_unexportFd;
+std::list<EdgeConfig> Interrupter::_configs;
+std::mutex Interrupter::_configMtx;
+int Interrupter::_exportFd;
+int Interrupter::_unexportFd;
 
-void RpiInterrupter::init() {
+void Interrupter::init() {
 
-    RpiInterrupter::_exportFd = ::open(
+    _exportFd = ::open(
         std::string(_GPIO_SYS_PATH).append("/export").c_str(),
         O_WRONLY);
 
-    if(RpiInterrupter::_exportFd < 0) {
+    if(_exportFd < 0) {
         throw std::runtime_error("unable to export gpio pins");
     }
 
-    RpiInterrupter::_unexportFd = ::open(
+    _unexportFd = ::open(
         std::string(_GPIO_SYS_PATH).append("/unexport").c_str(),
         O_WRONLY);
 
-    if(RpiInterrupter::_unexportFd < 0) {
+    if(_unexportFd < 0) {
         throw std::runtime_error("unable to unexport gpio pins");
     }
 
 }
 
-void RpiInterrupter::close() {
+void Interrupter::close() {
 
-    for(auto c : RpiInterrupter::_configs) {
-        removeInterrupt(c.gpioPin);
-        _unexport_gpio(c.gpioPin, RpiInterrupter::_unexportFd);
+    for(auto c : _configs) {
+        removeInterrupt(c.pin);
+        _unexport_gpio(c.pin, _unexportFd);
     }
 
-    ::close(RpiInterrupter::_exportFd);
-    ::close(RpiInterrupter::_unexportFd);
+    ::close(_exportFd);
+    ::close(_unexportFd);
 
 }
 
-const std::list<RpiInterrupter::EdgeConfig>& RpiInterrupter::getInterrupts() noexcept {
+const std::list<EdgeConfig>& Interrupter::getInterrupts() noexcept {
     return _configs;
 }
 
-void RpiInterrupter::removeInterrupt(const int gpioPin) {
+void Interrupter::removeInterrupt(const GPIO_PIN pin) {
 
-    const EdgeConfig* const c = _get_config(gpioPin);
+    const EdgeConfig* const c = _get_config(pin);
 
     if(c == nullptr) {
         return;
@@ -105,20 +105,20 @@ void RpiInterrupter::removeInterrupt(const int gpioPin) {
 
     //second, use the gpio prog to "reset" the interrupt
     //condition
-    _set_gpio_interrupt(gpioPin, Edge::NONE);
+    _set_gpio_interrupt(pin, Edge::NONE);
 
     //finally, close any open fds and remove the local
     //interrupt config
-    ::close(c->gpioPinValFd);
+    ::close(c->pinValFd);
     ::close(c->cancelEvFd);
 
-    _remove_config(c->gpioPin);
+    _remove_config(c->pin);
 
 }
 
-void RpiInterrupter::disableInterrupt(const int gpioPin) {
+void Interrupter::disableInterrupt(const GPIO_PIN pin) {
     
-    EdgeConfig* c = _get_config(gpioPin);
+    EdgeConfig* c = _get_config(pin);
     
     if(c == nullptr) {
         throw std::runtime_error("interrupt does not exist");
@@ -128,9 +128,9 @@ void RpiInterrupter::disableInterrupt(const int gpioPin) {
 
 }
 
-void RpiInterrupter::enableInterrupt(const int gpioPin) {
-    
-    EdgeConfig* c = _get_config(gpioPin);
+void Interrupter::enableInterrupt(const GPIO_PIN pin) {
+
+    EdgeConfig* c = _get_config(pin);
     
     if(c == nullptr) {
         throw std::runtime_error("interrupt does not exist");
@@ -140,10 +140,10 @@ void RpiInterrupter::enableInterrupt(const int gpioPin) {
 
 }
 
-void RpiInterrupter::attachInterrupt(
-    const int gpioPin,
-    const RpiInterrupter::Edge type,
-    const RpiInterrupter::INTERRUPT_CALLBACK onInterrupt) {
+void Interrupter::attachInterrupt(
+    const GPIO_PIN pin,
+    const Edge edge,
+    const INTERRUPT_CALLBACK onInterrupt) {
     
         //there can only be one edge type for a given pin
         //eg. it's not possible to have an interrupt for
@@ -153,45 +153,45 @@ void RpiInterrupter::attachInterrupt(
         //config and whether the existing pin config's edge type
         //is different from this edge type
 
-        if(_get_config(gpioPin) != nullptr) {
+        if(_get_config(pin) != nullptr) {
             throw std::invalid_argument("interrupt already set");
         }
 
-        RpiInterrupter::EdgeConfig e(gpioPin, type, onInterrupt);
+        EdgeConfig e(pin, edge, onInterrupt);
 
         _setupInterrupt(e);
 
 }
 
-RpiInterrupter::RpiInterrupter() noexcept {
+Interrupter::Interrupter() noexcept {
 }
 
-const char* const RpiInterrupter::_edgeToStr(const Edge e) noexcept {
-    return _EDGE_STRINGS[static_cast<uint8_t>(e)];
+const char* const Interrupter::_edgeToStr(const Edge e) noexcept {
+    return _EDGE_STRINGS[static_cast<size_t>(e)];
 }
 
-const char* const RpiInterrupter::_directionToStr(const Direction d) noexcept {
-    return _DIRECTION_STRINGS[static_cast<uint8_t>(d)];
+const char* const Interrupter::_directionToStr(const Direction d) noexcept {
+    return _DIRECTION_STRINGS[static_cast<size_t>(d)];
 }
 
-std::string RpiInterrupter::_getClassNodePath(const int gpioPin) noexcept {
+std::string Interrupter::_getClassNodePath(const GPIO_PIN pin) noexcept {
     return std::string(_GPIO_SYS_PATH)
         .append("/gpio")
-        .append(std::to_string(gpioPin));
+        .append(std::to_string(pin));
 }
 
-void RpiInterrupter::_set_gpio_interrupt(
-    const int gpioPin,
-    const RpiInterrupter::Edge e) {
-        _set_gpio_direction(gpioPin, Direction::IN);
-        _set_gpio_edge(gpioPin, e);
+void Interrupter::_set_gpio_interrupt(
+    const GPIO_PIN pin,
+    const Edge e) {
+        _set_gpio_direction(pin, Direction::IN);
+        _set_gpio_edge(pin, e);
 }
 
-void RpiInterrupter::_clear_gpio_interrupt(const int fd) {
+void Interrupter::_clear_gpio_interrupt(const int fd) {
     _get_gpio_value_fd(fd);
 }
 
-void RpiInterrupter::_export_gpio(const int gpioPin) {
+void Interrupter::_export_gpio(const GPIO_PIN pin) {
     
     const std::string path = std::string(_GPIO_SYS_PATH).append("/export");
     const int fd = ::open(path.c_str(), O_WRONLY);
@@ -200,15 +200,15 @@ void RpiInterrupter::_export_gpio(const int gpioPin) {
         throw std::runtime_error("unable to export pin");
     }
 
-    _export_gpio(gpioPin, fd);
+    _export_gpio(pin, fd);
     
     ::close(fd);
 
 }
 
-void RpiInterrupter::_export_gpio(const int gpioPin, const int fd) {
+void Interrupter::_export_gpio(const GPIO_PIN pin, const int fd) {
     
-    const std::string str = std::to_string(gpioPin);
+    const std::string str = std::to_string(pin);
     
     if(::write(fd, str.c_str(), str.size()) < 0) {
         throw std::runtime_error("pin export failed");
@@ -216,7 +216,7 @@ void RpiInterrupter::_export_gpio(const int gpioPin, const int fd) {
 
 }
 
-void RpiInterrupter::_unexport_gpio(const int gpioPin) {
+void Interrupter::_unexport_gpio(const GPIO_PIN pin) {
     
     const std::string path = std::string(_GPIO_SYS_PATH).append("/unexport");
     const int fd = ::open(path.c_str(), O_WRONLY);
@@ -225,15 +225,15 @@ void RpiInterrupter::_unexport_gpio(const int gpioPin) {
         throw std::runtime_error("unable to unexport pin");
     }
 
-    _unexport_gpio(gpioPin, fd);
+    _unexport_gpio(pin, fd);
     
     ::close(fd);
 
 }
 
-void RpiInterrupter::_unexport_gpio(const int gpioPin, const int fd) {
+void Interrupter::_unexport_gpio(const GPIO_PIN pin, const int fd) {
     
-    const std::string str = std::to_string(gpioPin);
+    const std::string str = std::to_string(pin);
     
     if(::write(fd, str.c_str(), str.size()) < 0) {
         throw std::runtime_error("pin unexport failed");
@@ -241,37 +241,35 @@ void RpiInterrupter::_unexport_gpio(const int gpioPin, const int fd) {
 
 }
 
-void RpiInterrupter::_set_gpio_direction(
-    const int gpioPin,
-    const RpiInterrupter::Direction d) {
+void Interrupter::_set_gpio_direction(const GPIO_PIN pin, const Direction d) {
 
-        const std::string path = _getClassNodePath(gpioPin).append("/direction");
-        const int fd = ::open(path.c_str(), O_WRONLY);
+    const std::string path = _getClassNodePath(pin).append("/direction");
+    const int fd = ::open(path.c_str(), O_WRONLY);
 
-        if(fd < 0) {
-            throw std::runtime_error("unable to change gpio direction");
-        }
+    if(fd < 0) {
+        throw std::runtime_error("unable to change gpio direction");
+    }
 
-        _set_gpio_direction(d, fd);
+    _set_gpio_direction(d, fd);
 
-        ::close(fd);
+    ::close(fd);
 
 }
 
-void RpiInterrupter::_set_gpio_direction(const RpiInterrupter::Direction d, const int fd) {
-    
+void Interrupter::_set_gpio_direction(const Direction d, const int fd) {
+
     const char* const str = _directionToStr(d);
     const size_t len = ::strlen(str);
-    
+
     if(::write(fd, str, len) < 0) {
         throw std::runtime_error("pin direction change failed");
     }
 
 }
 
-void RpiInterrupter::_set_gpio_edge(const int gpioPin, const RpiInterrupter::Edge e) {
+void Interrupter::_set_gpio_edge(const GPIO_PIN pin, const Edge e) {
     
-    const std::string path = _getClassNodePath(gpioPin).append("/edge");
+    const std::string path = _getClassNodePath(pin).append("/edge");
     const int fd = ::open(path.c_str(), O_WRONLY);
     
     if(fd < 0) {
@@ -284,7 +282,7 @@ void RpiInterrupter::_set_gpio_edge(const int gpioPin, const RpiInterrupter::Edg
 
 }
 
-void RpiInterrupter::_set_gpio_edge(const RpiInterrupter::Edge e, const int fd) {
+void Interrupter::_set_gpio_edge(const Edge e, const int fd) {
     
     const char* const str = _edgeToStr(e);
     const size_t len = ::strlen(str);
@@ -295,9 +293,9 @@ void RpiInterrupter::_set_gpio_edge(const RpiInterrupter::Edge e, const int fd) 
 
 }
 
-bool RpiInterrupter::_get_gpio_value(const int gpioPin) {
+bool Interrupter::_get_gpio_value(const GPIO_PIN pin) {
 
-    const std::string path = _getClassNodePath(gpioPin).append("/value");
+    const std::string path = _getClassNodePath(pin).append("/value");
     const int fd = ::open(path.c_str(), O_RDONLY);
     
     if(fd < 0) {
@@ -312,7 +310,7 @@ bool RpiInterrupter::_get_gpio_value(const int gpioPin) {
 
 }
 
-bool RpiInterrupter::_get_gpio_value_fd(const int fd) {
+bool Interrupter::_get_gpio_value_fd(const int fd) {
     
     char v;
     
@@ -327,25 +325,25 @@ bool RpiInterrupter::_get_gpio_value_fd(const int fd) {
 
 }
 
-RpiInterrupter::EdgeConfig* RpiInterrupter::_get_config(const int gpioPin) noexcept {
+EdgeConfig* Interrupter::_get_config(const GPIO_PIN pin) noexcept {
 
     auto it = std::find_if(
         _configs.begin(),
         _configs.end(), 
-        [gpioPin](const RpiInterrupter::EdgeConfig& e) {
-            return e.gpioPin == gpioPin; });
+        [pin](const EdgeConfig& e) {
+            return e.pin == pin; });
 
     return it != _configs.end() ? &(*it) : nullptr;
 
 }
 
-void RpiInterrupter::_remove_config(const int gpioPin) noexcept {
+void Interrupter::_remove_config(const GPIO_PIN pin) noexcept {
 
     auto it = std::find_if(
         _configs.begin(),
         _configs.end(),
-        [gpioPin](const RpiInterrupter::EdgeConfig& ec) {
-            return ec.gpioPin == gpioPin; });
+        [pin](const EdgeConfig& ec) {
+            return ec.pin == pin; });
 
     if(it != _configs.end()) {
         _configs.erase(it);
@@ -353,16 +351,16 @@ void RpiInterrupter::_remove_config(const int gpioPin) noexcept {
 
 }
 
-void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
+void Interrupter::_setupInterrupt(EdgeConfig e) {
 
-    _export_gpio(e.gpioPin, RpiInterrupter::_exportFd);
-    _set_gpio_interrupt(e.gpioPin, e.edge);
+    _export_gpio(e.pin, _exportFd);
+    _set_gpio_interrupt(e.pin, e.edge);
 
-    const std::string pinValPath = _getClassNodePath(e.gpioPin)
+    const std::string pinValPath = _getClassNodePath(e.pin)
         .append("/value");
 
     //open file to watch for value change
-    if((e.gpioPinValFd = ::open(pinValPath.c_str(), O_RDONLY)) < 0) {
+    if((e.pinValFd = ::open(pinValPath.c_str(), O_RDONLY)) < 0) {
         throw std::runtime_error("failed to setup interrupt");
     }
 
@@ -373,7 +371,7 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
 
     //at this point, wiringpi appears to "clear" an interrupt
     //merely by reading the value file to the end?
-    _clear_gpio_interrupt(e.gpioPinValFd);
+    _clear_gpio_interrupt(e.pinValFd);
 
     //need to grab the pointer to the config in the list
     std::unique_lock<std::mutex> lck(_configMtx);
@@ -382,11 +380,11 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
     lck.unlock();
 
     //spawn a thread and let it watch for the pin value change
-    std::thread(&RpiInterrupter::_watchPinValue, ptr).detach();
+    std::thread(&Interrupter::_watchPinValue, ptr).detach();
 
 }
 
-void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) noexcept {
+void Interrupter::_watchPinValue(EdgeConfig* const e) noexcept {
 
     int epollFd;
     struct epoll_event valevin = {0};
@@ -394,14 +392,14 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) noexcep
     struct epoll_event outevent;
 
     valevin.events = EPOLLPRI | EPOLLWAKEUP;
-    canevin.events = EPOLLHUP | EPOLLIN | EPOLLWAKEUP;
+    canevin.events = EPOLLHUP | EPOLLIN | EPOLLPRI | EPOLLWAKEUP;
 
-    valevin.data.fd = e->gpioPinValFd;
+    valevin.data.fd = e->pinValFd;
     canevin.data.fd = e->cancelEvFd;
 
     if(!(
         (epollFd = ::epoll_create(2)) >= 0 &&
-        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->gpioPinValFd, &valevin) == 0 &&
+        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->pinValFd, &valevin) == 0 &&
         ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->cancelEvFd, &canevin) == 0
         )) {
             //something has gone horribly wrong
@@ -409,7 +407,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) noexcep
             //ignore exceptions; thread cannot handle them
             try {
                 ::close(epollFd);
-                removeInterrupt(e->gpioPin);
+                removeInterrupt(e->pin);
             }
             catch(...) { }
             return;
@@ -434,13 +432,13 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) noexcep
         }
 
         //interrupt has occurred
-        if(outevent.data.fd == e->gpioPinValFd) {
+        if(outevent.data.fd == e->pinValFd) {
             
             //wiringpi does this to "reset" the interrupt
             //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1947-L1954
             //should this go before or after the onInterrupt call?
             try {
-                _clear_gpio_interrupt(e->gpioPinValFd);
+                _clear_gpio_interrupt(e->pinValFd);
             }
             catch(...) { }
 
@@ -460,7 +458,7 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) noexcep
 
 }
 
-void RpiInterrupter::_stopWatching(const RpiInterrupter::EdgeConfig* const e) noexcept {
+void Interrupter::_stopWatching(const EdgeConfig* const e) noexcept {
     //https://man7.org/linux/man-pages/man2/eventfd.2.html
     //this will raise an event on the fd which will be picked up
     //by epoll_wait

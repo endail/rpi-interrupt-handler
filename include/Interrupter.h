@@ -20,56 +20,58 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef RPI_INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
-#define RPI_INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
+#ifndef INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
+#define INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
 
 #include <string>
 #include <list>
 #include <functional>
 #include <mutex>
 
-namespace endail {
-class RpiInterrupter {
+namespace RpiGpioInterrupter {
+
+typedef std::function<void()> INTERRUPT_CALLBACK;
+typedef int GPIO_PIN;
+
+enum class Direction {
+    IN = 0,
+    OUT = 1
+};
+
+enum class Edge {
+    NONE = 0,
+    RISING = 1,
+    FALLING = 2,
+    BOTH = 3
+};
+
+struct EdgeConfig {
 public:
+    GPIO_PIN pin;
+    Edge edge;
+    INTERRUPT_CALLBACK onInterrupt;
+    int pinValFd = -1;
+    int cancelEvFd = -1;
+    bool enabled = true;
 
-    typedef std::function<void()> INTERRUPT_CALLBACK;
+    EdgeConfig() = default;
 
-    enum class Direction {
-        IN = 0,
-        OUT = 1
-    };
+    EdgeConfig(const GPIO_PIN p, const Edge e, INTERRUPT_CALLBACK cb) noexcept
+        :   pin(pin), edge(e), onInterrupt(cb) { }
+};
 
-    enum class Edge {
-        NONE = 0,
-        RISING = 1,
-        FALLING = 2,
-        BOTH = 3
-    };
-
-    struct EdgeConfig {
-    public:
-        int gpioPin;
-        Edge edge;
-        INTERRUPT_CALLBACK onInterrupt;
-        int gpioPinValFd = -1;
-        int cancelEvFd = -1;
-        bool enabled = true;
-
-        EdgeConfig() = default;
-
-        EdgeConfig(const int pin, const Edge e, INTERRUPT_CALLBACK cb) noexcept
-            :   gpioPin(pin), edge(e), onInterrupt(cb) { }
-    };
+class Interrupter {
+public:
 
     static void init();
     static void close();
     static const std::list<EdgeConfig>& getInterrupts() noexcept;
-    static void removeInterrupt(const int gpioPin);
-    static void disableInterrupt(const int gpioPin);
-    static void enableInterrupt(const int gpioPin);
+    static void removeInterrupt(const GPIO_PIN pin);
+    static void disableInterrupt(const GPIO_PIN pin);
+    static void enableInterrupt(const GPIO_PIN pin);
     static void attachInterrupt(
-        const int gpioPin,
-        const Edge type,
+        const GPIO_PIN pin,
+        const Edge edge,
         const INTERRUPT_CALLBACK onInterrupt);
 
 
@@ -84,29 +86,29 @@ protected:
     static int _exportFd;
     static int _unexportFd;
 
-    RpiInterrupter() noexcept;
-    virtual ~RpiInterrupter() = default;
+    Interrupter() noexcept;
+    virtual ~Interrupter() = default;
 
     static const char* const _edgeToStr(const Edge e) noexcept;
     static const char* const _directionToStr(const Direction d) noexcept;
-    static std::string _getClassNodePath(const int gpioPin) noexcept;
+    static std::string _getClassNodePath(const GPIO_PIN pin) noexcept;
 
-    static void _set_gpio_interrupt(const int gpioPin, const Edge e);
+    static void _set_gpio_interrupt(const GPIO_PIN pin, const Edge e);
     static void _clear_gpio_interrupt(const int fd);
 
-    static void _export_gpio(const int gpioPin);
-    static void _export_gpio(const int gpioPin, const int fd);
-    static void _unexport_gpio(const int gpioPin);
-    static void _unexport_gpio(const int gpioPin, const int fd);
-    static void _set_gpio_direction(const int gpioPin, const Direction d);
+    static void _export_gpio(const GPIO_PIN pin);
+    static void _export_gpio(const GPIO_PIN pin, const int fd);
+    static void _unexport_gpio(const GPIO_PIN pin);
+    static void _unexport_gpio(const GPIO_PIN pin, const int fd);
+    static void _set_gpio_direction(const GPIO_PIN pin, const Direction d);
     static void _set_gpio_direction(const Direction d, const int fd);
-    static void _set_gpio_edge(const int gpioPin, const Edge e);
+    static void _set_gpio_edge(const GPIO_PIN pin, const Edge e);
     static void _set_gpio_edge(const Edge e, const int fd);
-    static bool _get_gpio_value(const int gpioPin);
+    static bool _get_gpio_value(const GPIO_PIN pin);
     static bool _get_gpio_value_fd(const int fd);
 
-    static EdgeConfig* _get_config(const int gpioPin) noexcept;
-    static void _remove_config(const int gpioPin) noexcept;
+    static EdgeConfig* _get_config(const GPIO_PIN pin) noexcept;
+    static void _remove_config(const GPIO_PIN pin) noexcept;
 
     static void _setupInterrupt(EdgeConfig e);
     static void _watchPinValue(EdgeConfig* const e) noexcept;

@@ -1,12 +1,13 @@
 
-#include "../include/RpiInterrupter.h"
+#include "../include/Interrupter.h"
+#include <chrono>
+#include <climits>
 #include <functional>
 #include <iostream>
-#include <unistd.h>
-#include <climits>
+#include <thread>
 
 using namespace std;
-using namespace endail;
+using namespace RpiGpioInterrupter;
 
 void onInterrupt() {
     std::cout << "***interrupt***" << std::endl;
@@ -16,13 +17,13 @@ int main(int argc, char** argv) {
 
     const int gpioPin = ::stoi(argv[1]);
 
-    RpiInterrupter::attachInterrupt(
+    Interrupter::attachInterrupt(
         gpioPin,
-        RpiInterrupter::Edge::BOTH,
+        Edge::BOTH,
         std::function<void()>(&onInterrupt));
 
     while(true) {
-        ::sleep(UINT_MAX);
+        this_thread::sleep_for(chrono::seconds(UINT_MAX));
     }
 
     return 0;
