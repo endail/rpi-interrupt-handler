@@ -263,7 +263,7 @@ void RpiInterrupter::_set_gpio_edge(const int gpioPin, const RpiInterrupter::Edg
 void RpiInterrupter::_set_gpio_edge(const RpiInterrupter::Edge e, const int fd) {
     
     const char* const str = _edgeToStr(e);
-    const size_t len = ::strlen(edgeStr);
+    const size_t len = ::strlen(str);
     
     if(::write(fd, str, len) < 0) {
         throw std::runtime_error("failed to change gpio edge");
