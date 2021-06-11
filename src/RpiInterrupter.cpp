@@ -323,7 +323,7 @@ bool RpiInterrupter::_get_gpio_value_fd(const int fd) {
     //don't test result of this
     ::lseek(fd, 0, SEEK_SET);
     
-    return v == '1' ? true : false;
+    return v == '1';
 
 }
 
