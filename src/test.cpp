@@ -10,14 +10,24 @@
 using namespace std;
 using namespace RpiGpioInterrupter;
 
+int numInterrupts = 0;
+bool keepRunning = true;
+
 void onInterrupt() {
+    
     std::cout << "***interrupt***" << std::endl;
+    numInterrupts++;
+
+    if(numInterrupts >= 10) {
+        keepRunning = false;
+    }
+
 }
 
 void pulsePin(const int pin) {
     //each second, toggle the output state of the pin
     bool state = digitalRead(pin) == HIGH;
-    while(true) {
+    while(keepRunning) {
         state = !state;
         cout << "Setting pin " << pin << " to " << (state ? "high" : "low") << endl;
         digitalWrite(pin, state ? HIGH : LOW);
@@ -28,21 +38,20 @@ void pulsePin(const int pin) {
 int main(int argc, char** argv) {
 
     wiringPiSetup();
+    Interrupter::init();
 
     //both wiringpi num'd pins
     const int intPin = ::stoi(argv[1]);
     const int outPin = ::stoi(argv[2]);
 
-    std::thread(pulsePin, outPin).detach();
+    thread th = thread(pulsePin, outPin);
 
     Interrupter::attachInterrupt(
         wpiPinToGpio(intPin),
         Edge::BOTH,
         std::function<void()>(&onInterrupt));
 
-    while(true) {
-        this_thread::sleep_for(chrono::seconds(UINT_MAX));
-    }
+    th.join();
 
     return 0;
 

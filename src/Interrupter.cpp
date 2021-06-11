@@ -58,6 +58,7 @@ int Interrupter::_unexportFd;
 
 void Interrupter::init() {
 
+/*
     _exportFd = ::open(
         std::string(_GPIO_SYS_PATH).append("/export").c_str(),
         O_WRONLY);
@@ -73,6 +74,7 @@ void Interrupter::init() {
     if(_unexportFd < 0) {
         throw std::runtime_error("unable to unexport gpio pins");
     }
+*/
 
 }
 
@@ -80,11 +82,12 @@ void Interrupter::close() {
 
     for(auto c : _configs) {
         removeInterrupt(c.pin);
-        _unexport_gpio(c.pin, _unexportFd);
+        //_unexport_gpio(c.pin, _unexportFd);
+        _unexport_gpio(c.pin);
     }
 
-    ::close(_exportFd);
-    ::close(_unexportFd);
+    //::close(_exportFd);
+    //::close(_unexportFd);
 
 }
 
@@ -241,6 +244,11 @@ void Interrupter::_unexport_gpio(const GPIO_PIN pin, const int fd) {
 
 }
 
+bool Interrupter::_gpio_exported(const GPIO_PIN pin) {
+    const std::string path = _getClassNodePath(pin).append("/edge");
+    return ::access(path.c_str(), R_OK | W_OK) == 0;
+}
+
 void Interrupter::_set_gpio_direction(const GPIO_PIN pin, const Direction d) {
 
     const std::string path = _getClassNodePath(pin).append("/direction");
@@ -353,9 +361,17 @@ void Interrupter::_remove_config(const GPIO_PIN pin) noexcept {
 
 void Interrupter::_setupInterrupt(EdgeConfig e) {
 
-    _export_gpio(e.pin, _exportFd);
-    _set_gpio_interrupt(e.pin, e.edge);
+    while(!_gpio_exported(e.pin)) {
+        try {
+            _export_gpio(e.pin);
+        }
+        catch(...) {
+            ::usleep(500);
+        }
+    }
 
+    _set_gpio_interrupt(e.pin, e.edge);
+   
     const std::string pinValPath = _getClassNodePath(e.pin)
         .append("/value");
 

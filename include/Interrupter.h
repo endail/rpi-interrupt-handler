@@ -100,6 +100,7 @@ protected:
     static void _export_gpio(const GPIO_PIN pin, const int fd);
     static void _unexport_gpio(const GPIO_PIN pin);
     static void _unexport_gpio(const GPIO_PIN pin, const int fd);
+    static bool _gpio_exported(const GPIO_PIN pin);
     static void _set_gpio_direction(const GPIO_PIN pin, const Direction d);
     static void _set_gpio_direction(const Direction d, const int fd);
     static void _set_gpio_edge(const GPIO_PIN pin, const Edge e);
