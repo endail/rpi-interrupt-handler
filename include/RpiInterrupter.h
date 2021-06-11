@@ -55,7 +55,7 @@ public:
         int gpioPin;
         Edge edgeType;
         INTERRUPT_CALLBACK onInterrupt;
-        int pinValEvFd = -1;
+        int gpioPinValFd = -1;
         int cancelEvFd = -1;
 
         EdgeConfig() = default;

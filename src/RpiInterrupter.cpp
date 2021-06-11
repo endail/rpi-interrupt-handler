@@ -99,7 +99,7 @@ void RpiInterrupter::removeInterrupt(const int gpioPin) {
 
     //finally, close any open fds and remove the local
     //interrupt config
-    ::close(c->pinValEvFd);
+    ::close(c->gpioPinValFd);
     ::close(c->cancelEvFd);
 
     _remove_config(c->gpioPin);
@@ -354,7 +354,7 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
         .append("/value");
 
     //open file to watch for value change
-    if((e.pinValEvFd = ::open(pinValPath.c_str(), O_RDONLY)) < 0) {
+    if((e.gpioPinValFd = ::open(pinValPath.c_str(), O_RDONLY)) < 0) {
         throw std::runtime_error("failed to setup interrupt");
     }
 
@@ -365,7 +365,7 @@ void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
 
     //at this point, wiringpi appears to "clear" an interrupt
     //merely by reading the value file to the end?
-    _clear_gpio_interrupt(e.pinValEvFd);
+    _clear_gpio_interrupt(e.gpioPinValFd);
 
     //need to grab the pointer to the config in the list
     std::unique_lock<std::mutex> lck(_configMtx);
@@ -388,12 +388,12 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
     valevin.events = EPOLLPRI | EPOLLWAKEUP;
     canevin.events = EPOLLHUP | EPOLLIN | EPOLLWAKEUP;
 
-    valevin.data.fd = e->pinValEvFd;
+    valevin.data.fd = e->gpioPinValFd;
     canevin.data.fd = e->cancelEvFd;
 
     if(!(
         (epollFd = ::epoll_create(2)) >= 0 &&
-        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->pinValEvFd, &valevin) == 0 &&
+        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->gpioPinValFd, &valevin) == 0 &&
         ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->cancelEvFd, &canevin) == 0
         )) {
             //something has gone horribly wrong
@@ -422,12 +422,12 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
         }
 
         //interrupt has occurred
-        if(outevent.data.fd == e->pinValEvFd) {
+        if(outevent.data.fd == e->gpioPinValFd) {
             
             //wiringpi does this to "reset" the interrupt
             //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1947-L1954
             //TODO: should this go before or after the onInterrupt call?
-            _clear_gpio_interrupt(e->pinValEvFd);
+            _clear_gpio_interrupt(e->gpioPinValFd);
 
             //handler is not responsible for dealing with
             //exceptions arising from user code and should
