@@ -123,7 +123,7 @@ void RpiInterrupter::disableInterrupt(const int gpioPin) {
     }
 }
 
-void RpiInterruper::enableInterrupt(const int gpioPin) {
+void RpiInterrupter::enableInterrupt(const int gpioPin) {
     EdgeConfig* c = _get_config(gpioPin);
     if(c != nullptr) {
         c->enabled = true;
