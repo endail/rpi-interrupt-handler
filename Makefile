@@ -69,7 +69,7 @@ else
 endif
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
-	$(CXX) $(CXXFLAGS) $(INC) -c -o $(LIBS) $@ $<
+	$(CXX) $(CXXFLAGS) $(INC) -c -o $@ $<
 
 .PHONY: test
 test: $(BUILDDIR)/test.o
@@ -77,7 +77,7 @@ test: $(BUILDDIR)/test.o
 		-o $(BINDIR)/test \
 		$(BUILDDIR)/test.o \
 		$(BUILDDIR)/Interrupter.o \
-		$(LIBS) -lwiringPi
+		-lwiringPi $(LIBS)
 
 .PHONY: clean
 clean:
