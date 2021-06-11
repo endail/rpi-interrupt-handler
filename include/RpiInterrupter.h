@@ -26,10 +26,7 @@
 #include <string>
 #include <list>
 #include <functional>
-#include <thread>
 #include <mutex>
-
-//https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1924-L2081
 
 namespace endail {
 class RpiInterrupter {
@@ -49,11 +46,10 @@ public:
         BOTH = 3
     };
 
-    //TODO: add some debouncing?
     struct EdgeConfig {
     public:
         int gpioPin;
-        Edge edgeType;
+        Edge edge;
         INTERRUPT_CALLBACK onInterrupt;
         int gpioPinValFd = -1;
         int cancelEvFd = -1;
@@ -62,7 +58,7 @@ public:
 
         EdgeConfig(const int pin, const Edge e, INTERRUPT_CALLBACK cb)
             :   gpioPin(pin),
-                edgeType(e),
+                edge(e),
                 onInterrupt(cb) { }
         
     };

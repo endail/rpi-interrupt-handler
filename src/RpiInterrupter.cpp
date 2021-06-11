@@ -53,8 +53,8 @@ const char* const RpiInterrupter::_DIRECTION_STRINGS[] = {
 
 std::list<RpiInterrupter::EdgeConfig> RpiInterrupter::_configs;
 std::mutex RpiInterrupter::_configMtx;
-RpiInterrupter::_exportFd;
-RpiInterrupter::_unexportFd;
+int RpiInterrupter::_exportFd;
+int RpiInterrupter::_unexportFd;
 
 void RpiInterrupter::init() {
 
@@ -348,7 +348,7 @@ void RpiInterrupter::_remove_config(const int gpioPin) {
 
 void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
 
-    _set_gpio_interrupt(e.gpioPin, e.edgeType);
+    _set_gpio_interrupt(e.gpioPin, e.edge);
 
     const std::string pinValPath = _getClassNodePath(e.gpioPin)
         .append("/value");
@@ -433,7 +433,9 @@ void RpiInterrupter::_watchPinValue(RpiInterrupter::EdgeConfig* const e) {
             //exceptions arising from user code and should
             //ignore them for the sake of efficiency
             try {
-                e->onInterrupt();
+                if(e->onInterrupt) {
+                    e->onInterrupt();
+                }
             }
             catch(...) { }
 
