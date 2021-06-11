@@ -4,6 +4,9 @@ src/RpiInterrupter.cpp:288:0: style: The function '_get_gpio_value' is never use
 src/RpiInterrupter.cpp:119:0: style: The function 'disableInterrupt' is never used. [unusedFunction]
 
 ^
+src/RpiInterrupter.cpp:126:0: style: The function 'enableInterrupt' is never used. [unusedFunction]
+
+^
 src/RpiInterrupter.cpp:91:0: style: The function 'getInterrupts' is never used. [unusedFunction]
 
 ^
