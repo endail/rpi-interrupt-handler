@@ -57,7 +57,7 @@ public:
     EdgeConfig() = default;
 
     EdgeConfig(const GPIO_PIN p, const Edge e, INTERRUPT_CALLBACK cb) noexcept
-        :   pin(pin), edge(e), onInterrupt(cb) { }
+        :   pin(p), edge(e), onInterrupt(cb) { }
 };
 
 class Interrupter {

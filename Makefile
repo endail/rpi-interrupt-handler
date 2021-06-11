@@ -1,5 +1,4 @@
 CXX := g++
-#CXX := ${RPI_TOOLCHAIN}/bin/arm-linux-gnueabihf-g++.exe
 INCDIR := include
 SRCDIR := src
 BUILDDIR := build
@@ -24,6 +23,12 @@ CFLAGS :=	-O2 \
 
 
 ########################################################################
+
+# if dev env var, set compiler to rpi toolchain compiler
+ifneq ($(DEV),)
+	CXX := ${RPI_TOOLCHAIN}/bin/arm-linux-gnueabihf-g++.exe
+endif
+
 
 # https://stackoverflow.com/a/39895302/570787
 ifeq ($(PREFIX),)
@@ -50,13 +55,18 @@ CXXFLAGS := -std=c++11 \
 
 .PHONY: all
 all: 	dirs \
-		$(BUILDDIR)/RpiInterrupter.o \
+		$(BUILDDIR)/Interrupter.o \
 		test
 
 .PHONY: dirs
 dirs:
-	mkdir -p $(BINDIR)
+ifeq ($(OS),Windows_NT)
+	if not exist $(BUILDDIR) mkdir $(BUILDDIR)
+	if not exist $(BINDIR) mkdir $(BINDIR)
+else
 	mkdir -p $(BUILDDIR)
+	mkdir -p $(BINDIR)
+endif
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
 	$(CXX) $(CXXFLAGS) $(INC) -c -o $@ $<
@@ -66,10 +76,17 @@ test: $(BUILDDIR)/test.o
 	$(CXX) $(CXXFLAGS) $(INC) \
 		-o $(BINDIR)/test \
 		$(BUILDDIR)/test.o \
-		$(BUILDDIR)/RpiInterrupter.o \
+		$(BUILDDIR)/Interrupter.o \
 		$(LIBS)
 
 .PHONY: clean
 clean:
-	$(RM) -r $(BUILDDIR)/*
-	$(RM) -r $(BINDIR)/*
+ifeq ($(OS),Windows_NT)
+	del /S /Q $(BUILDDIR)
+	del /S /Q $(BINDIR)
+else
+	rm -rfv $(BUILDDIR)
+	rm -rfv $(BINDIR)
+endif
+	rmdir $(BUILDDIR)
+	rmdir $(BINDIR)
