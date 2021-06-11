@@ -1,10 +1,10 @@
-src/RpiInterrupter.cpp:386:33: style: Variable 'outevent' is assigned a value that is never used. [unreadVariable]
+src/RpiInterrupter.cpp:384:33: style: Variable 'outevent' is assigned a value that is never used. [unreadVariable]
     struct epoll_event outevent = {0};
                                 ^
-src/RpiInterrupter.cpp:263:0: style: The function '_get_gpio_value' is never used. [unusedFunction]
+src/RpiInterrupter.cpp:261:0: style: The function '_get_gpio_value' is never used. [unusedFunction]
 
 ^
-src/RpiInterrupter.cpp:81:0: style: The function 'getInterrupts' is never used. [unusedFunction]
+src/RpiInterrupter.cpp:79:0: style: The function 'getInterrupts' is never used. [unusedFunction]
 
 ^
 src/RpiInterrupter.cpp:59:0: style: The function 'init' is never used. [unusedFunction]
