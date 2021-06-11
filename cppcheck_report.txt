@@ -1,16 +1,7 @@
-src/RpiInterrupter.cpp:298:0: style: The function '_get_gpio_value' is never used. [unusedFunction]
+src/Interrupter.cpp:91:0: style: The function 'getInterrupts' is never used. [unusedFunction]
 
 ^
-src/RpiInterrupter.cpp:119:0: style: The function 'disableInterrupt' is never used. [unusedFunction]
-
-^
-src/RpiInterrupter.cpp:131:0: style: The function 'enableInterrupt' is never used. [unusedFunction]
-
-^
-src/RpiInterrupter.cpp:91:0: style: The function 'getInterrupts' is never used. [unusedFunction]
-
-^
-src/RpiInterrupter.cpp:59:0: style: The function 'init' is never used. [unusedFunction]
+src/Interrupter.cpp:59:0: style: The function 'init' is never used. [unusedFunction]
 
 ^
 nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
