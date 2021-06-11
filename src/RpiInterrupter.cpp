@@ -131,9 +131,9 @@ void RpiInterrupter::enableInterrupt(const int gpioPin) {
 }
 
 void RpiInterrupter::attachInterrupt(
-    int gpioPin,
-    RpiInterrupter::Edge type,
-    RpiInterrupter::INTERRUPT_CALLBACK onInterrupt) {
+    const int gpioPin,
+    const RpiInterrupter::Edge type,
+    const RpiInterrupter::INTERRUPT_CALLBACK onInterrupt) {
     
         //there can only be one edge type for a given pin
         //eg. it's not possible to have an interrupt for

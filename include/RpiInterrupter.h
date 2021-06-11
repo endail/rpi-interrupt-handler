@@ -71,9 +71,9 @@ public:
     static void disableInterrupt(const int gpioPin);
     static void enableInterrupt(const int gpioPin);
     static void attachInterrupt(
-        int gpioPin,
-        Edge type,
-        INTERRUPT_CALLBACK onInterrupt);
+        const int gpioPin,
+        const Edge type,
+        const INTERRUPT_CALLBACK onInterrupt);
 
 
 protected:
