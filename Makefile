@@ -69,7 +69,7 @@ else
 endif
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
-	$(CXX) $(CXXFLAGS) $(INC) -c -o $@ $<
+	$(CXX) $(CXXFLAGS) $(INC) -c -o $(LIBS) $@ $<
 
 .PHONY: test
 test: $(BUILDDIR)/test.o
