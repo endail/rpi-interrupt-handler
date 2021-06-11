@@ -64,6 +64,7 @@ public:
     };
 
     static void init();
+    static void close();
     static const std::list<EdgeConfig>& getInterrupts();
     static void removeInterrupt(const int gpioPin);
     static void attachInterrupt(
@@ -103,8 +104,6 @@ protected:
     static void _set_gpio_edge(const Edge e, const int fd);
     static bool _get_gpio_value(const int gpioPin);
     static bool _get_gpio_value_fd(const int fd);
-    static void _set_gpio_value(const int gpioPin, const bool v);
-    static void _set_gpio_value(const bool v, const int fd);
 
     static EdgeConfig* _get_config(const int gpioPin);
     static void _remove_config(const int gpioPin);

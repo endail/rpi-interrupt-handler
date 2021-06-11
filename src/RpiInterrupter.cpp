@@ -76,6 +76,18 @@ void RpiInterrupter::init() {
 
 }
 
+void RpiInterrupter::close() {
+
+    for(auto c : RpiInterrupter::_configs) {
+        removeInterrupt(c.gpioPin);
+        _unexport_gpio(c.gpioPin, RpiInterrupter::_unexportFd);
+    }
+
+    ::close(RpiInterrupter::_exportFd);
+    ::close(RpiInterrupter::_unexportFd);
+
+}
+
 const std::list<RpiInterrupter::EdgeConfig>& RpiInterrupter::getInterrupts() {
     return _configs;
 }
@@ -147,7 +159,6 @@ std::string RpiInterrupter::_getClassNodePath(const int gpioPin) {
 void RpiInterrupter::_set_gpio_interrupt(
     const int gpioPin,
     const RpiInterrupter::Edge e) {
-        _export_gpio(gpioPin, RpiInterrupter::_exportFd);
         _set_gpio_direction(gpioPin, Direction::IN);
         _set_gpio_edge(gpioPin, e);
 }
@@ -173,9 +184,9 @@ void RpiInterrupter::_export_gpio(const int gpioPin) {
 
 void RpiInterrupter::_export_gpio(const int gpioPin, const int fd) {
     
-    const std::string pinStr = std::to_string(gpioPin);
+    const std::string str = std::to_string(gpioPin);
     
-    if(::write(fd, pinStr.c_str(), pinStr.size()) < 0) {
+    if(::write(fd, str.c_str(), str.size()) < 0) {
         throw std::runtime_error("pin export failed");
     }
 
@@ -198,9 +209,9 @@ void RpiInterrupter::_unexport_gpio(const int gpioPin) {
 
 void RpiInterrupter::_unexport_gpio(const int gpioPin, const int fd) {
     
-    const std::string pinStr = std::to_string(gpioPin);
+    const std::string str = std::to_string(gpioPin);
     
-    if(::write(fd, pinStr.c_str(), pinStr.size()) < 0) {
+    if(::write(fd, str.c_str(), str.size()) < 0) {
         throw std::runtime_error("pin unexport failed");
     }
 
@@ -225,9 +236,10 @@ void RpiInterrupter::_set_gpio_direction(
 
 void RpiInterrupter::_set_gpio_direction(const RpiInterrupter::Direction d, const int fd) {
     
-    const char* const dirStr = _directionToStr(d);
+    const char* const str = _directionToStr(d);
+    const size_t len = ::strlen(str);
     
-    if(::write(fd, dirStr, ::strlen(dirStr)) < 0) {
+    if(::write(fd, str, len) < 0) {
         throw std::runtime_error("pin direction change failed");
     }
 
@@ -250,9 +262,10 @@ void RpiInterrupter::_set_gpio_edge(const int gpioPin, const RpiInterrupter::Edg
 
 void RpiInterrupter::_set_gpio_edge(const RpiInterrupter::Edge e, const int fd) {
     
-    const char* const edgeStr = _edgeToStr(e);
+    const char* const str = _edgeToStr(e);
+    const size_t len = ::strlen(edgeStr);
     
-    if(::write(fd, edgeStr, ::strlen(edgeStr)) < 0) {
+    if(::write(fd, str, len) < 0) {
         throw std::runtime_error("failed to change gpio edge");
     }
 
@@ -290,34 +303,6 @@ bool RpiInterrupter::_get_gpio_value_fd(const int fd) {
 
 }
 
-void RpiInterrupter::_set_gpio_value(const int gpioPin, const bool v) {
-    
-    const std::string path = _getClassNodePath(gpioPin).append("/value");
-    const int fd = ::open(path.c_str(), O_WRONLY);
-    
-    if(fd < 0) {
-        throw std::runtime_error("unable to set pin value");
-    }
-
-    _set_gpio_value(v, fd);
-    
-    ::close(fd);
-
-}
-
-void RpiInterrupter::_set_gpio_value(const bool v, const int fd) {
-    
-    char b = v ? '1' : '0';
-
-    if(::write(fd, &b, 1) < 0) {
-        throw std::runtime_error("failed to set pin value");
-    }
-    
-    //don't test return value of this
-    ::lseek(fd, 0, SEEK_SET);
-
-}
-
 RpiInterrupter::EdgeConfig* RpiInterrupter::_get_config(const int gpioPin) {
 
     auto it = std::find_if(
@@ -346,6 +331,7 @@ void RpiInterrupter::_remove_config(const int gpioPin) {
 
 void RpiInterrupter::_setupInterrupt(RpiInterrupter::EdgeConfig e) {
 
+    _export_gpio(e.gpioPin, RpiInterrupter::_exportFd);
     _set_gpio_interrupt(e.gpioPin, e.edge);
 
     const std::string pinValPath = _getClassNodePath(e.gpioPin)
