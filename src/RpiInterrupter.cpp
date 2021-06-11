@@ -22,10 +22,10 @@
 
 #include "../include/RpiInterrupter.h"
 #include <algorithm>
-#include <cstdlib>
 #include <cstring>
 #include <iterator>
 #include <stdexcept>
+#include <thread>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
