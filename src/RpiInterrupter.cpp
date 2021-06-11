@@ -61,7 +61,7 @@ void RpiInterrupter::init() {
     const std::string base = std::string(_GPIO_SYS_PATH);
 
     RpiInterrupter::_exportFd = ::open(
-        base.append("/export").c_str(),
+        std::string(base).append("/export").c_str(),
         O_WRONLY);
 
     if(RpiInterrupter::_exportFd < 0) {
@@ -69,7 +69,7 @@ void RpiInterrupter::init() {
     }
 
     RpiInterrupter::_unexportFd = ::open(
-        base.append("/unexport").c_str(),
+        std::string(base).append("/unexport").c_str(),
         O_WRONLY);
 
     if(RpiInterrupter::_unexportFd < 0) {
