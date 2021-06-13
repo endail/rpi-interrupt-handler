@@ -53,6 +53,7 @@ public:
     Edge edge;
     INTERRUPT_CALLBACK onInterrupt;
     int pinValFd = -1;
+    epoll_event epEvents = {0};
     bool enabled = true;
 
     EdgeConfig() = default;
@@ -88,7 +89,6 @@ protected:
     static int _unexportFd;
     static int _epollFd;
     static std::thread _epollThread;
-    static int _epollThCancelEvFd;
 
     Interrupter() noexcept;
     virtual ~Interrupter() = default;

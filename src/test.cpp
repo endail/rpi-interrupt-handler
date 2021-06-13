@@ -16,6 +16,7 @@ int outPin;
 
 void onInterrupt() {
     std::cout << "***interrupt***" << std::endl << std::flush;
+    Interrupter::removeInterrupt(wpiPinToGpio(interruptPin));
 }
 
 void pulsePin(const int pin) {
@@ -25,14 +26,6 @@ void pulsePin(const int pin) {
         cout << "Setting pin " << pin << " to " << (state ? "high" : "low") << endl;
         digitalWrite(pin, state ? HIGH : LOW);
         this_thread::sleep_for(chrono::seconds(1));
-
-            //this isn't working because there is no epoll_wait
-            //occurring at the time of the cancel event being raised!
-            //
-            //i think it would be better to have 1 thread which monitors ALL
-            //interrupt pins, then invokes a separate thread when
-            //an interrupt occurs!
-            Interrupter::removeInterrupt(wpiPinToGpio(interruptPin));
     }
 }
 
@@ -51,8 +44,8 @@ int main(int argc, char** argv) {
 
     Interrupter::attachInterrupt(
         wpiPinToGpio(interruptPin),
-        Edge::FALLING,
-        std::function<void()>(&onInterrupt));
+        Edge::BOTH,
+        []() { cout << "interrupt!" << endl; });
 
     th.join();
 

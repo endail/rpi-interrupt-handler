@@ -60,7 +60,6 @@ int Interrupter::_exportFd;
 int Interrupter::_unexportFd;
 int Interrupter::_epollFd;
 std::thread Interrupter::_epollThread;
-int Interrupter::_epollThCancelEvFd;
 
 void Interrupter::init() {
 
@@ -84,12 +83,6 @@ void Interrupter::init() {
 
     if(_epollFd < 0) {
         throw std::runtime_error("unable to create epoll");
-    }
-
-    _epollThCancelEvFd = ::eventfd(0, EFD_SEMAPHORE);
-
-    if(_epollThCancelEvFd < 0) {
-        throw std::runtime_error("unable to create eventfd");
     }
 
     _epollThread = std::thread(_watchEpoll);
@@ -398,19 +391,20 @@ void Interrupter::_setupInterrupt(EdgeConfig e) {
         throw std::runtime_error("failed to setup interrupt");
     }
 
-    struct epoll_event valevin = {0};
-    valevin.events = EPOLLPRI | EPOLLWAKEUP;
-    valevin.data.fd = e.pinValFd;
-
-    if(::epoll_ctl(_epollFd, EPOLL_CTL_ADD, e.pinValFd, &valevin) != 0) {
-        throw std::runtime_error("failed to add to epoll");
-    }
-
-    _configs.push_back(e);
+    struct epoll_event inev = {0};
+    inev.events = EPOLLPRI;
+    inev.data.fd = e.pinValFd;
+    inev.data.u32 = static_cast<uint32_t>(e.pin);
 
     //at this point, wiringpi appears to "clear" an interrupt
     //merely by reading the value file to the end?
     _clear_gpio_interrupt(e.pinValFd);
+
+    if(::epoll_ctl(_epollFd, EPOLL_CTL_ADD, e.pinValFd, &inev) != 0) {
+        throw std::runtime_error("failed to add to epoll");
+    }
+
+    _configs.push_back(e);
 
 }
 
@@ -438,7 +432,7 @@ void Interrupter::_watchEpoll() {
 
 void Interrupter::_processEpollEvent(const epoll_event ev) {
 
-    EdgeConfig* conf = _get_config(ev.data.fd);
+    EdgeConfig* conf = _get_config(static_cast<GPIO_PIN>(ev.data.u32));
 
     if(conf == nullptr) {
         return;
