@@ -58,6 +58,9 @@ std::list<EdgeConfig> Interrupter::_configs;
 std::mutex Interrupter::_configMtx;
 int Interrupter::_exportFd;
 int Interrupter::_unexportFd;
+int Interrupter::_epollFd;
+std::thread Interrupter::_epollThread;
+int Interrupter::_epollThCancelEvFd;
 
 void Interrupter::init() {
 
@@ -77,6 +80,21 @@ void Interrupter::init() {
         throw std::runtime_error("unable to unexport gpio pins");
     }
 
+    _epollFd = ::epoll_create(1);
+
+    if(_epollFd < 0) {
+        throw std::runtime_error("unable to create epoll");
+    }
+
+    _epollThCancelEvFd = ::eventfd(0, EFD_SEMAPHORE);
+
+    if(_epollThCancelEvFd < 0) {
+        throw std::runtime_error("unable to create eventfd");
+    }
+
+    _epollThread = std::thread(_watchEpoll);
+    _epollThread.detach();
+
 }
 
 void Interrupter::close() {
@@ -86,6 +104,7 @@ void Interrupter::close() {
         _unexport_gpio(c.pin, _unexportFd);
     }
 
+    ::close(_epollFd);
     ::close(_exportFd);
     ::close(_unexportFd);
 
@@ -103,21 +122,17 @@ void Interrupter::removeInterrupt(const GPIO_PIN pin) {
         return;
     }
 
-    //first, stop the thread watching the pin state
-    std::cout << "stopping watch" << std::endl;
-    _stopWatching(c);
+    //first, remove the file descriptors from the epoll
+    ::epoll_ctl(_epollFd, EPOLL_CTL_DEL, c->pinValFd, nullptr);
 
-    sleep(1);
-
-    //second, use the gpio prog to "reset" the interrupt
-    //condition
+    //second, set the interrupt to none
+    //this could fail
     _set_gpio_interrupt(pin, Edge::NONE);
 
-    //finally, close any open fds and remove the local
-    //interrupt config
+    //third, close the file descriptors
     ::close(c->pinValFd);
-    ::close(c->cancelEvFd);
 
+    //and last, remove the configuration
     _remove_config(c->pin);
 
 }
@@ -383,54 +398,25 @@ void Interrupter::_setupInterrupt(EdgeConfig e) {
         throw std::runtime_error("failed to setup interrupt");
     }
 
-    //create event fd for cancelling the thread watch routine
-    if((e.cancelEvFd = ::eventfd(0, EFD_SEMAPHORE)) < 0) {
-        throw std::runtime_error("failed to setup interrupt");
+    struct epoll_event valevin = {0};
+    valevin.events = EPOLLPRI | EPOLLWAKEUP;
+    valevin.data.fd = e.pinValFd;
+
+    if(::epoll_ctl(_epollFd, EPOLL_CTL_ADD, e.pinValFd, &valevin) != 0) {
+        throw std::runtime_error("failed to add to epoll");
     }
+
+    _configs.push_back(e);
 
     //at this point, wiringpi appears to "clear" an interrupt
     //merely by reading the value file to the end?
     _clear_gpio_interrupt(e.pinValFd);
 
-    //need to grab the pointer to the config in the list
-    std::unique_lock<std::mutex> lck(_configMtx);
-    _configs.push_back(e);
-    EdgeConfig* const ptr = &_configs.back();
-    lck.unlock();
-
-    //spawn a thread and let it watch for the pin value change
-    std::thread(&Interrupter::_watchPinValue, ptr).detach();
-
 }
 
-void Interrupter::_watchPinValue(EdgeConfig* const e) noexcept {
+void Interrupter::_watchEpoll() {
 
-    int epollFd;
-    struct epoll_event valevin = {0};
-    struct epoll_event canevin = {0};
     struct epoll_event outevent;
-
-    valevin.events = EPOLLPRI | EPOLLWAKEUP;
-    canevin.events = EPOLLPRI | EPOLLWAKEUP | EPOLLHUP | EPOLLIN;
-
-    valevin.data.fd = e->pinValFd;
-    canevin.data.fd = e->cancelEvFd;
-
-    if(!(
-        (epollFd = ::epoll_create(2)) >= 0 &&
-        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->pinValFd, &valevin) == 0 &&
-        ::epoll_ctl(epollFd, EPOLL_CTL_ADD, e->cancelEvFd, &canevin) == 0
-        )) {
-            //something has gone horribly wrong
-            //cannot wait for cancel event; must clean up now
-            //ignore exceptions; thread cannot handle them
-            try {
-                ::close(epollFd);
-                removeInterrupt(e->pin);
-            }
-            catch(...) { }
-            return;
-    }
 
     //thread loop
     while(true) {
@@ -440,64 +426,42 @@ void Interrupter::_watchPinValue(EdgeConfig* const e) noexcept {
 
         //maxevents set to 1 means only 1 fd will be processed
         //at a time - this is simpler!
-        if(::epoll_wait(epollFd, &outevent, 1, -1) < 0) {
+        if(::epoll_wait(_epollFd, &outevent, 1, -1) < 0) {
             continue;
         }
 
-        std::cout << "epoll success on " << outevent.data.fd << std::endl;
-
-        //check if the fd is the cancel event
-        if(outevent.data.fd == e->cancelEvFd) {
-            std::cout << "interrupt cancelled" << std::endl << std::flush;
-            ::close(epollFd);
-            break;
-        }
-
-        //interrupt has occurred
-        if(outevent.data.fd == e->pinValFd) {
-            
-            //wiringpi does this to "reset" the interrupt
-            //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1947-L1954
-            //should this go before or after the onInterrupt call?
-            try {
-                _clear_gpio_interrupt(e->pinValFd);
-            }
-            catch(...) { }
-
-            //handler is not responsible for dealing with
-            //exceptions arising from user code and should
-            //ignore them for the sake of efficiency
-            try {
-                if(e->onInterrupt && e->enabled) {
-                    std::thread(e->onInterrupt).detach();
-                    //e->onInterrupt();
-                }
-            }
-            catch(...) { }
-
-        }
+        _processEpollEvent(outevent);
 
     }
 
 }
 
-void Interrupter::_stopWatching(const EdgeConfig* const e) noexcept {
-    //https://man7.org/linux/man-pages/man2/eventfd.2.html
-    //this will raise an event on the fd which will be picked up
-    //by epoll_wait
-    //eventfd_t v = 1;
-    //::eventfd_write(e->cancelEvFd, v);
-    const eventfd_t val = 2;
-    int result;
-    std::cout << "sending cancel to fd: " << e->cancelEvFd << std::endl;
+void Interrupter::_processEpollEvent(const epoll_event ev) {
 
-    if((result = ::write(e->cancelEvFd, &val, sizeof(eventfd_t))) != sizeof(eventfd_t)) {
-        int err = errno;
-        std::cout << "Err: " << err << std::endl;
-        std::cout << strerror(err) << std::endl;
-        throw std::runtime_error("failed to send cancel");
+    EdgeConfig* conf = _get_config(ev.data.fd);
+
+    if(conf == nullptr) {
+        return;
     }
-    std::cout << "wrote to cancel ev fd" << std::endl;
+
+    //wiringpi does this to "reset" the interrupt
+    //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1947-L1954
+    //should this go before or after the onInterrupt call?
+    try {
+        _clear_gpio_interrupt(conf->pinValFd);
+    }
+    catch(...) { }
+
+    //handler is not responsible for dealing with
+    //exceptions arising from user code and should
+    //ignore them for the sake of efficiency
+    try {
+        if(conf->onInterrupt && conf->enabled) {
+            conf->onInterrupt();
+        }
+    }
+    catch(...) { }
+
 }
 
 };

@@ -27,6 +27,8 @@
 #include <list>
 #include <functional>
 #include <mutex>
+#include <thread>
+#include <sys/epoll.h>
 
 namespace RpiGpioInterrupter {
 
@@ -51,7 +53,6 @@ public:
     Edge edge;
     INTERRUPT_CALLBACK onInterrupt;
     int pinValFd = -1;
-    int cancelEvFd = -1;
     bool enabled = true;
 
     EdgeConfig() = default;
@@ -85,6 +86,9 @@ protected:
     static std::mutex _configMtx;
     static int _exportFd;
     static int _unexportFd;
+    static int _epollFd;
+    static std::thread _epollThread;
+    static int _epollThCancelEvFd;
 
     Interrupter() noexcept;
     virtual ~Interrupter() = default;
@@ -111,9 +115,9 @@ protected:
     static EdgeConfig* _get_config(const GPIO_PIN pin) noexcept;
     static void _remove_config(const GPIO_PIN pin) noexcept;
 
+    static void _watchEpoll();
+    static void _processEpollEvent(const epoll_event ev);
     static void _setupInterrupt(EdgeConfig e);
-    static void _watchPinValue(EdgeConfig* const e) noexcept;
-    static void _stopWatching(const EdgeConfig* const e) noexcept;
 
 };
 };
