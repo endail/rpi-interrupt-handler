@@ -28,7 +28,6 @@
 #include <functional>
 #include <mutex>
 #include <thread>
-#include <sys/epoll.h>
 
 namespace RpiGpioInterrupter {
 
@@ -53,7 +52,6 @@ public:
     Edge edge;
     INTERRUPT_CALLBACK onInterrupt;
     int pinValFd = -1;
-    epoll_event epEvents = {0};
     bool enabled = true;
 
     EdgeConfig() = default;
@@ -84,7 +82,6 @@ protected:
     static const char* const _DIRECTION_STRINGS[];
 
     static std::list<EdgeConfig> _configs;
-    static std::mutex _configMtx;
     static int _exportFd;
     static int _unexportFd;
     static int _epollFd;

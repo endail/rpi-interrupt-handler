@@ -55,11 +55,10 @@ const char* const Interrupter::_DIRECTION_STRINGS[] = {
 };
 
 std::list<EdgeConfig> Interrupter::_configs;
-std::mutex Interrupter::_configMtx;
+std::thread Interrupter::_epollThread;
+int Interrupter::_epollFd;
 int Interrupter::_exportFd;
 int Interrupter::_unexportFd;
-int Interrupter::_epollFd;
-std::thread Interrupter::_epollThread;
 
 void Interrupter::init() {
 

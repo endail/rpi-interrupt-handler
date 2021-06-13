@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
 
     Interrupter::attachInterrupt(
         wpiPinToGpio(interruptPin),
-        Edge::BOTH,
+        Edge::RISING,
         []() { cout << "interrupt!" << endl; });
 
     th.join();
