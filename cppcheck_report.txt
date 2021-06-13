@@ -1,10 +1,4 @@
-src/Interrupter.cpp:498:9: error: Exception thrown in function declared not to throw exceptions. [throwInNoexceptFunction]
-        throw std::runtime_error("failed to send cancel");
-        ^
-src/Interrupter.cpp:494:16: style: Variable 'result' is assigned a value that is never used. [unreadVariable]
-    if((result = ::write(e->cancelEvFd, &val, sizeof(eventfd_t))) != sizeof(eventfd_t)) {
-               ^
-src/Interrupter.cpp:94:0: style: The function 'getInterrupts' is never used. [unusedFunction]
+src/Interrupter.cpp:113:0: style: The function 'getInterrupts' is never used. [unusedFunction]
 
 ^
 nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
