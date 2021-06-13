@@ -10,28 +10,29 @@
 using namespace std;
 using namespace RpiGpioInterrupter;
 
-int numInterrupts = 0;
 bool keepRunning = true;
+int interruptPin;
+int outPin;
 
 void onInterrupt() {
-    
-    std::cout << "***interrupt***" << std::endl;
-    numInterrupts++;
-
-    if(numInterrupts >= 10) {
-        keepRunning = false;
-    }
-
+    std::cout << "***interrupt***" << std::endl << std::flush;
 }
 
 void pulsePin(const int pin) {
-    //each second, toggle the output state of the pin
     bool state = digitalRead(pin) == HIGH;
     while(keepRunning) {
         state = !state;
         cout << "Setting pin " << pin << " to " << (state ? "high" : "low") << endl;
         digitalWrite(pin, state ? HIGH : LOW);
         this_thread::sleep_for(chrono::seconds(1));
+
+            //this isn't working because there is no epoll_wait
+            //occurring at the time of the cancel event being raised!
+            //
+            //i think it would be better to have 1 thread which monitors ALL
+            //interrupt pins, then invokes a separate thread when
+            //an interrupt occurs!
+            Interrupter::removeInterrupt(wpiPinToGpio(interruptPin));
     }
 }
 
@@ -41,17 +42,21 @@ int main(int argc, char** argv) {
     Interrupter::init();
 
     //both wiringpi num'd pins
-    const int intPin = ::stoi(argv[1]);
-    const int outPin = ::stoi(argv[2]);
+    interruptPin = ::stoi(argv[1]);
+    outPin = ::stoi(argv[2]);
+
+    pinMode(outPin, OUTPUT);
 
     thread th = thread(pulsePin, outPin);
 
     Interrupter::attachInterrupt(
-        wpiPinToGpio(intPin),
-        Edge::BOTH,
+        wpiPinToGpio(interruptPin),
+        Edge::FALLING,
         std::function<void()>(&onInterrupt));
 
     th.join();
+
+    Interrupter::close();
 
     return 0;
 

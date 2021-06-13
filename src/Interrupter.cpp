@@ -35,6 +35,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <iostream>
+#include <errno.h>
+
 namespace RpiGpioInterrupter {
 
 const char* const Interrupter::_GPIO_SYS_PATH = "/sys/class/gpio";
@@ -58,7 +61,6 @@ int Interrupter::_unexportFd;
 
 void Interrupter::init() {
 
-/*
     _exportFd = ::open(
         std::string(_GPIO_SYS_PATH).append("/export").c_str(),
         O_WRONLY);
@@ -74,7 +76,6 @@ void Interrupter::init() {
     if(_unexportFd < 0) {
         throw std::runtime_error("unable to unexport gpio pins");
     }
-*/
 
 }
 
@@ -82,12 +83,11 @@ void Interrupter::close() {
 
     for(auto c : _configs) {
         removeInterrupt(c.pin);
-        //_unexport_gpio(c.pin, _unexportFd);
-        _unexport_gpio(c.pin);
+        _unexport_gpio(c.pin, _unexportFd);
     }
 
-    //::close(_exportFd);
-    //::close(_unexportFd);
+    ::close(_exportFd);
+    ::close(_unexportFd);
 
 }
 
@@ -104,7 +104,10 @@ void Interrupter::removeInterrupt(const GPIO_PIN pin) {
     }
 
     //first, stop the thread watching the pin state
+    std::cout << "stopping watch" << std::endl;
     _stopWatching(c);
+
+    sleep(1);
 
     //second, use the gpio prog to "reset" the interrupt
     //condition
@@ -121,7 +124,7 @@ void Interrupter::removeInterrupt(const GPIO_PIN pin) {
 
 void Interrupter::disableInterrupt(const GPIO_PIN pin) {
     
-    EdgeConfig* c = _get_config(pin);
+    EdgeConfig* const c = _get_config(pin);
     
     if(c == nullptr) {
         throw std::runtime_error("interrupt does not exist");
@@ -133,7 +136,7 @@ void Interrupter::disableInterrupt(const GPIO_PIN pin) {
 
 void Interrupter::enableInterrupt(const GPIO_PIN pin) {
 
-    EdgeConfig* c = _get_config(pin);
+    EdgeConfig* const c = _get_config(pin);
     
     if(c == nullptr) {
         throw std::runtime_error("interrupt does not exist");
@@ -363,9 +366,9 @@ void Interrupter::_setupInterrupt(EdgeConfig e) {
 
     while(!_gpio_exported(e.pin)) {
         try {
-            _export_gpio(e.pin);
+            _export_gpio(e.pin, _exportFd);
         }
-        catch(...) {
+        catch(const std::runtime_error& ex) {
             ::usleep(500);
         }
     }
@@ -408,7 +411,7 @@ void Interrupter::_watchPinValue(EdgeConfig* const e) noexcept {
     struct epoll_event outevent;
 
     valevin.events = EPOLLPRI | EPOLLWAKEUP;
-    canevin.events = EPOLLHUP | EPOLLIN | EPOLLPRI | EPOLLWAKEUP;
+    canevin.events = EPOLLPRI | EPOLLWAKEUP | EPOLLHUP | EPOLLIN;
 
     valevin.data.fd = e->pinValFd;
     canevin.data.fd = e->cancelEvFd;
@@ -441,8 +444,11 @@ void Interrupter::_watchPinValue(EdgeConfig* const e) noexcept {
             continue;
         }
 
+        std::cout << "epoll success on " << outevent.data.fd << std::endl;
+
         //check if the fd is the cancel event
         if(outevent.data.fd == e->cancelEvFd) {
+            std::cout << "interrupt cancelled" << std::endl << std::flush;
             ::close(epollFd);
             break;
         }
@@ -463,7 +469,8 @@ void Interrupter::_watchPinValue(EdgeConfig* const e) noexcept {
             //ignore them for the sake of efficiency
             try {
                 if(e->onInterrupt && e->enabled) {
-                    e->onInterrupt();
+                    std::thread(e->onInterrupt).detach();
+                    //e->onInterrupt();
                 }
             }
             catch(...) { }
@@ -478,7 +485,19 @@ void Interrupter::_stopWatching(const EdgeConfig* const e) noexcept {
     //https://man7.org/linux/man-pages/man2/eventfd.2.html
     //this will raise an event on the fd which will be picked up
     //by epoll_wait
-    ::eventfd_write(e->cancelEvFd, 1);
+    //eventfd_t v = 1;
+    //::eventfd_write(e->cancelEvFd, v);
+    const eventfd_t val = 2;
+    int result;
+    std::cout << "sending cancel to fd: " << e->cancelEvFd << std::endl;
+
+    if((result = ::write(e->cancelEvFd, &val, sizeof(eventfd_t))) != sizeof(eventfd_t)) {
+        int err = errno;
+        std::cout << "Err: " << err << std::endl;
+        std::cout << strerror(err) << std::endl;
+        throw std::runtime_error("failed to send cancel");
+    }
+    std::cout << "wrote to cancel ev fd" << std::endl;
 }
 
 };
