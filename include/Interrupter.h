@@ -24,10 +24,12 @@
 #define INTERRUPTER_H_87004B4F_3EBC_4756_BDC5_01DE911A84F8
 
 #include <string>
-#include <list>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <thread>
+#include <vector>
+#include <sys/epoll.h>
 
 namespace RpiGpioInterrupter {
 
@@ -46,30 +48,37 @@ enum class Edge {
     BOTH = 3
 };
 
-struct EdgeConfig {
+class CallbackEntry {
+public:
+    bool enabled;
+    INTERRUPT_CALLBACK onInterrupt;
+    CallbackEntry(INTERRUPT_CALLBACK cb)
+        : enabled(true), onInterrupt(cb) { }
+};
+
+class EdgeConfig {
 public:
     GPIO_PIN pin;
     Edge edge;
-    INTERRUPT_CALLBACK onInterrupt;
+    std::vector<CallbackEntry> _callbacks;
     int pinValFd = -1;
     bool enabled = true;
-
-    EdgeConfig() = default;
-
-    EdgeConfig(const GPIO_PIN p, const Edge e, INTERRUPT_CALLBACK cb) noexcept
-        :   pin(p), edge(e), onInterrupt(cb) { }
+    EdgeConfig(const GPIO_PIN p, const Edge e) noexcept
+        :   pin(p), edge(e) { }
 };
+
+typedef std::shared_ptr<EdgeConfig> EDGE_CONF_PTR;
 
 class Interrupter {
 public:
 
     static void init();
     static void close();
-    static const std::list<EdgeConfig>& getInterrupts() noexcept;
-    static void removeInterrupt(const GPIO_PIN pin);
-    static void disableInterrupt(const GPIO_PIN pin);
-    static void enableInterrupt(const GPIO_PIN pin);
-    static void attachInterrupt(
+    static const std::vector<EDGE_CONF_PTR>& getInterrupts() noexcept;
+    static void removePinInterrupt(const GPIO_PIN pin);
+    static void disablePinInterrupt(const GPIO_PIN pin);
+    static void enablePinInterrupt(const GPIO_PIN pin);
+    static void attachPinInterrupt(
         const GPIO_PIN pin,
         const Edge edge,
         const INTERRUPT_CALLBACK onInterrupt);
@@ -81,7 +90,8 @@ protected:
     static const char* const _EDGE_STRINGS[];
     static const char* const _DIRECTION_STRINGS[];
 
-    static std::list<EdgeConfig> _configs;
+    //static std::list<EdgeConfig> _configs;
+    static std::vector<EDGE_CONF_PTR> _configs;
     static int _exportFd;
     static int _unexportFd;
     static int _epollFd;
@@ -109,12 +119,12 @@ protected:
     static bool _get_gpio_value(const GPIO_PIN pin);
     static bool _get_gpio_value_fd(const int fd);
 
-    static EdgeConfig* _get_config(const GPIO_PIN pin) noexcept;
+    static EDGE_CONF_PTR _get_config(const GPIO_PIN pin) noexcept;
     static void _remove_config(const GPIO_PIN pin) noexcept;
 
     static void _watchEpoll();
     static void _processEpollEvent(const epoll_event ev);
-    static void _setupInterrupt(EdgeConfig e);
+    static void _setupInterrupt(const GPIO_PIN pin, const Edge edge);
 
 };
 };

@@ -16,7 +16,7 @@ int outPin;
 
 void onInterrupt() {
     std::cout << "***interrupt***" << std::endl << std::flush;
-    Interrupter::removeInterrupt(wpiPinToGpio(interruptPin));
+    Interrupter::removePinInterrupt(wpiPinToGpio(interruptPin));
 }
 
 void pulsePin(const int pin) {
@@ -41,11 +41,17 @@ int main(int argc, char** argv) {
     pinMode(outPin, OUTPUT);
 
     thread th = thread(pulsePin, outPin);
+    th.detach();
 
-    Interrupter::attachInterrupt(
+    Interrupter::attachPinInterrupt(
         wpiPinToGpio(interruptPin),
         Edge::RISING,
-        []() { cout << "interrupt!" << endl; });
+        []() { cout << "interrupt one" << endl; });
+
+    Interrupter::attachPinInterrupt(
+        wpiPinToGpio(interruptPin),
+        Edge::RISING,
+        []() { cout << "interrupt two" << endl; });
 
     th.join();
 

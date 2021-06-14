@@ -54,7 +54,8 @@ const char* const Interrupter::_DIRECTION_STRINGS[] = {
     "out"
 };
 
-std::list<EdgeConfig> Interrupter::_configs;
+//std::list<EdgeConfig> Interrupter::_configs;
+std::vector<EDGE_CONF_PTR> Interrupter::_configs;
 std::thread Interrupter::_epollThread;
 int Interrupter::_epollFd;
 int Interrupter::_exportFd;
@@ -92,8 +93,8 @@ void Interrupter::init() {
 void Interrupter::close() {
 
     for(auto c : _configs) {
-        removeInterrupt(c.pin);
-        _unexport_gpio(c.pin, _unexportFd);
+        removePinInterrupt(c->pin);
+        _unexport_gpio(c->pin, _unexportFd);
     }
 
     ::close(_epollFd);
@@ -102,13 +103,13 @@ void Interrupter::close() {
 
 }
 
-const std::list<EdgeConfig>& Interrupter::getInterrupts() noexcept {
+const std::vector<EDGE_CONF_PTR>& Interrupter::getInterrupts() noexcept {
     return _configs;
 }
 
-void Interrupter::removeInterrupt(const GPIO_PIN pin) {
+void Interrupter::removePinInterrupt(const GPIO_PIN pin) {
 
-    const EdgeConfig* const c = _get_config(pin);
+    const EDGE_CONF_PTR c = _get_config(pin);
 
     if(c == nullptr) {
         return;
@@ -129,9 +130,9 @@ void Interrupter::removeInterrupt(const GPIO_PIN pin) {
 
 }
 
-void Interrupter::disableInterrupt(const GPIO_PIN pin) {
+void Interrupter::disablePinInterrupt(const GPIO_PIN pin) {
     
-    EdgeConfig* const c = _get_config(pin);
+    EDGE_CONF_PTR c = _get_config(pin);
     
     if(c == nullptr) {
         throw std::runtime_error("interrupt does not exist");
@@ -141,9 +142,9 @@ void Interrupter::disableInterrupt(const GPIO_PIN pin) {
 
 }
 
-void Interrupter::enableInterrupt(const GPIO_PIN pin) {
+void Interrupter::enablePinInterrupt(const GPIO_PIN pin) {
 
-    EdgeConfig* const c = _get_config(pin);
+    EDGE_CONF_PTR c = _get_config(pin);
     
     if(c == nullptr) {
         throw std::runtime_error("interrupt does not exist");
@@ -153,7 +154,7 @@ void Interrupter::enableInterrupt(const GPIO_PIN pin) {
 
 }
 
-void Interrupter::attachInterrupt(
+void Interrupter::attachPinInterrupt(
     const GPIO_PIN pin,
     const Edge edge,
     const INTERRUPT_CALLBACK onInterrupt) {
@@ -166,13 +167,19 @@ void Interrupter::attachInterrupt(
         //config and whether the existing pin config's edge type
         //is different from this edge type
 
-        if(_get_config(pin) != nullptr) {
-            throw std::invalid_argument("interrupt already set");
+        EDGE_CONF_PTR config = _get_config(pin);
+
+        if(config == nullptr) {
+            _setupInterrupt(pin, edge);
+            config = _get_config(pin);
         }
 
-        EdgeConfig e(pin, edge, onInterrupt);
-
-        _setupInterrupt(e);
+        if(config->edge == edge) {
+            config->_callbacks.push_back(CallbackEntry(onInterrupt));
+        }
+        else {
+            throw std::invalid_argument("interrupt already set");
+        }
 
 }
 
@@ -343,15 +350,15 @@ bool Interrupter::_get_gpio_value_fd(const int fd) {
 
 }
 
-EdgeConfig* Interrupter::_get_config(const GPIO_PIN pin) noexcept {
+EDGE_CONF_PTR Interrupter::_get_config(const GPIO_PIN pin) noexcept {
 
     auto it = std::find_if(
         _configs.begin(),
         _configs.end(), 
-        [pin](const EdgeConfig& e) {
-            return e.pin == pin; });
+        [pin](const EDGE_CONF_PTR& e) {
+            return e->pin == pin; });
 
-    return it != _configs.end() ? &(*it) : nullptr;
+    return it != _configs.end() ? *it : nullptr;
 
 }
 
@@ -360,8 +367,8 @@ void Interrupter::_remove_config(const GPIO_PIN pin) noexcept {
     auto it = std::find_if(
         _configs.begin(),
         _configs.end(),
-        [pin](const EdgeConfig& ec) {
-            return ec.pin == pin; });
+        [pin](const EDGE_CONF_PTR& ec) {
+            return ec->pin == pin; });
 
     if(it != _configs.end()) {
         _configs.erase(it);
@@ -369,41 +376,43 @@ void Interrupter::_remove_config(const GPIO_PIN pin) noexcept {
 
 }
 
-void Interrupter::_setupInterrupt(EdgeConfig e) {
+void Interrupter::_setupInterrupt(const GPIO_PIN pin, const Edge edge) {
 
-    while(!_gpio_exported(e.pin)) {
+    while(!_gpio_exported(pin)) {
         try {
-            _export_gpio(e.pin, _exportFd);
+            _export_gpio(pin, _exportFd);
         }
         catch(const std::runtime_error& ex) {
             ::usleep(500);
         }
     }
 
-    _set_gpio_interrupt(e.pin, e.edge);
+    _set_gpio_interrupt(pin, edge);
    
-    const std::string pinValPath = _getClassNodePath(e.pin)
+    EDGE_CONF_PTR conf = std::make_shared<EdgeConfig>(pin, edge);
+
+    const std::string pinValPath = _getClassNodePath(pin)
         .append("/value");
 
     //open file to watch for value change
-    if((e.pinValFd = ::open(pinValPath.c_str(), O_RDONLY)) < 0) {
+    if((conf->pinValFd = ::open(pinValPath.c_str(), O_RDONLY)) < 0) {
         throw std::runtime_error("failed to setup interrupt");
     }
 
     struct epoll_event inev = {0};
     inev.events = EPOLLPRI;
-    inev.data.fd = e.pinValFd;
-    inev.data.u32 = static_cast<uint32_t>(e.pin);
+    inev.data.fd = conf->pinValFd;
+    inev.data.u32 = static_cast<uint32_t>(pin);
 
     //at this point, wiringpi appears to "clear" an interrupt
     //merely by reading the value file to the end?
-    _clear_gpio_interrupt(e.pinValFd);
+    _clear_gpio_interrupt(conf->pinValFd);
 
-    if(::epoll_ctl(_epollFd, EPOLL_CTL_ADD, e.pinValFd, &inev) != 0) {
+    if(::epoll_ctl(_epollFd, EPOLL_CTL_ADD, conf->pinValFd, &inev) != 0) {
         throw std::runtime_error("failed to add to epoll");
     }
 
-    _configs.push_back(e);
+    _configs.push_back(conf);
 
 }
 
@@ -431,7 +440,7 @@ void Interrupter::_watchEpoll() {
 
 void Interrupter::_processEpollEvent(const epoll_event ev) {
 
-    EdgeConfig* conf = _get_config(static_cast<GPIO_PIN>(ev.data.u32));
+    EDGE_CONF_PTR conf = _get_config(static_cast<GPIO_PIN>(ev.data.u32));
 
     if(conf == nullptr) {
         return;
@@ -445,15 +454,26 @@ void Interrupter::_processEpollEvent(const epoll_event ev) {
     }
     catch(...) { }
 
-    //handler is not responsible for dealing with
-    //exceptions arising from user code and should
-    //ignore them for the sake of efficiency
-    try {
-        if(conf->onInterrupt && conf->enabled) {
-            conf->onInterrupt();
+    if(!conf->enabled) {
+        return;
+    }
+
+    auto it = conf->_callbacks.cbegin();
+    auto end = conf->_callbacks.cend();
+
+    for(; it != end; ++it) {
+        if(it->enabled && it->onInterrupt) {
+            
+            //handler is not responsible for dealing with
+            //exceptions arising from user code and should
+            //ignore them for the sake of efficiency
+            try {
+                it->onInterrupt();
+            }
+            catch(...) { }
+
         }
     }
-    catch(...) { }
 
 }
 
