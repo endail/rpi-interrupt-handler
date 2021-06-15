@@ -117,6 +117,7 @@ void Interrupter::attach(const GPIO_PIN pin, const Edge edge, const INTERRUPT_CA
 
     PINCONF_PTR conf = _get_config(pin);
 
+    //reverse these tests?
     if(conf != nullptr) {
         if(conf->edge == edge) {
             conf->_callbacks.push_back(CallbackEntry(cb));
