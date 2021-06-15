@@ -52,7 +52,7 @@ class CallbackEntry {
 public:
     bool enabled;
     INTERRUPT_CALLBACK onInterrupt;
-    CallbackEntry(INTERRUPT_CALLBACK cb)
+    CallbackEntry(INTERRUPT_CALLBACK cb) noexcept
         : enabled(true), onInterrupt(cb) { }
 };
 
@@ -75,6 +75,12 @@ public:
     static void init();
     static void close();
     static const std::vector<EDGE_CONF_PTR>& getInterrupts() noexcept;
+
+    static void attach(
+        const GPIO_PIN pin,
+        const Edge edge,
+        const INTERRUPT_CALLBACK cb);
+
     static void removePinInterrupt(const GPIO_PIN pin);
     static void disablePinInterrupt(const GPIO_PIN pin);
     static void enablePinInterrupt(const GPIO_PIN pin);
@@ -90,7 +96,6 @@ protected:
     static const char* const _EDGE_STRINGS[];
     static const char* const _DIRECTION_STRINGS[];
 
-    //static std::list<EdgeConfig> _configs;
     static std::vector<EDGE_CONF_PTR> _configs;
     static int _exportFd;
     static int _unexportFd;
