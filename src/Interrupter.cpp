@@ -54,8 +54,8 @@ const char* const Interrupter::_DIRECTION_STRINGS[] = {
     "out"
 };
 
-//std::list<EdgeConfig> Interrupter::_configs;
-std::vector<EDGE_CONF_PTR> Interrupter::_configs;
+//std::list<PinConfig> Interrupter::_configs;
+std::vector<PINCONF_PTR> Interrupter::_configs;
 std::thread Interrupter::_epollThread;
 int Interrupter::_epollFd;
 int Interrupter::_exportFd;
@@ -92,9 +92,9 @@ void Interrupter::init() {
 
 void Interrupter::close() {
 
-    for(auto c : _configs) {
-        removePinInterrupt(c->pin);
-        _unexport_gpio(c->pin, _unexportFd);
+    for(auto conf : _configs) {
+        removePin(conf->pin);
+        _unexport_gpio(conf->pin, _unexportFd);
     }
 
     ::close(_epollFd);
@@ -103,83 +103,133 @@ void Interrupter::close() {
 
 }
 
-const std::vector<EDGE_CONF_PTR>& Interrupter::getInterrupts() noexcept {
+const std::vector<PINCONF_PTR>& Interrupter::getInterrupts() noexcept {
     return _configs;
 }
 
-void Interrupter::removePinInterrupt(const GPIO_PIN pin) {
+void Interrupter::attach(const GPIO_PIN pin, const Edge edge, const INTERRUPT_CALLBACK cb) {
 
-    const EDGE_CONF_PTR c = _get_config(pin);
+    //first, check if a config for the pin exists
+    //  if it does, check if the edge matches
+    //      if it does, add the callback
+    //      else, throw ex
+    //  else, setup the pin/edge and add the callback
 
-    if(c == nullptr) {
+    PINCONF_PTR conf = _get_config(pin);
+
+    if(conf != nullptr) {
+        if(conf->edge == edge) {
+            conf->_callbacks.push_back(CallbackEntry(cb));
+        }
+        else {
+            throw std::runtime_error("interrupt already set");
+        }
+    }
+    else {
+        conf = _setup_pin(pin, edge);
+        conf->_callbacks.push_back(CallbackEntry(cb));
+        _configs.push_back(conf);
+    }
+
+}
+
+void Interrupter::disable(const GPIO_PIN pin, const INTERRUPT_CALLBACK cb) {
+
+    PINCONF_PTR conf = _get_config(pin);
+
+    if(conf == nullptr) {
         return;
     }
 
-    //first, remove the file descriptors from the epoll
-    ::epoll_ctl(_epollFd, EPOLL_CTL_DEL, c->pinValFd, nullptr);
+    auto it = std::find_if(
+        conf->_callbacks.begin(),
+        conf->_callbacks.end(), 
+        [cb](const CallbackEntry& ce) {
+            return cb.target<void()>() == ce.onInterrupt.target<void()>(); });
 
-    //second, set the interrupt to none
-    //this could fail
-    _set_gpio_interrupt(pin, Edge::NONE);
-
-    //third, close the file descriptors
-    ::close(c->pinValFd);
-
-    //and last, remove the configuration
-    _remove_config(c->pin);
-
-}
-
-void Interrupter::disablePinInterrupt(const GPIO_PIN pin) {
-    
-    EDGE_CONF_PTR c = _get_config(pin);
-    
-    if(c == nullptr) {
-        throw std::runtime_error("interrupt does not exist");
+    if(it != conf->_callbacks.end()) {
+        it->enabled = false;
     }
 
-    c->enabled = false;
-
 }
 
-void Interrupter::enablePinInterrupt(const GPIO_PIN pin) {
+void Interrupter::enable(const GPIO_PIN pin, const INTERRUPT_CALLBACK cb) {
 
-    EDGE_CONF_PTR c = _get_config(pin);
-    
-    if(c == nullptr) {
-        throw std::runtime_error("interrupt does not exist");
+    PINCONF_PTR conf = _get_config(pin);
+
+    if(conf == nullptr) {
+        return;
     }
-    
-    c->enabled = true;
+
+    auto it = std::find_if(
+        conf->_callbacks.begin(),
+        conf->_callbacks.end(), 
+        [cb](const CallbackEntry& ce) {
+            return cb.target<void()>() == ce.onInterrupt.target<void()>(); });
+
+    if(it != conf->_callbacks.end()) {
+        it->enabled = true;
+    }
 
 }
 
-void Interrupter::attachPinInterrupt(
-    const GPIO_PIN pin,
-    const Edge edge,
-    const INTERRUPT_CALLBACK onInterrupt) {
+void Interrupter::remove(const GPIO_PIN pin, const INTERRUPT_CALLBACK cb) {
+
+    PINCONF_PTR conf = _get_config(pin);
+
+    if(conf == nullptr) {
+        return;
+    }
+
+    auto it = std::find_if(
+        conf->_callbacks.begin(),
+        conf->_callbacks.end(), 
+        [cb](const CallbackEntry& ce) {
+            return cb.target<void()>() == *ce.onInterrupt.target<void()>(); });
+
+    if(it != conf->_callbacks.end()) {
+        conf->_callbacks.erase(it);
+    }
+
+}
+
+void Interrupter::disablePin(const GPIO_PIN pin) {
     
-        //there can only be one edge type for a given pin
-        //eg. it's not possible to have an interrupt for
-        //rising and falling simultaneously
-        //
-        //need to check whether there is an existing pin
-        //config and whether the existing pin config's edge type
-        //is different from this edge type
+    PINCONF_PTR conf = _get_config(pin);
 
-        EDGE_CONF_PTR config = _get_config(pin);
+    if(conf != nullptr) {
+        conf->enabled = false;
+    }
 
-        if(config == nullptr) {
-            _setupInterrupt(pin, edge);
-            config = _get_config(pin);
-        }
+}
 
-        if(config->edge == edge) {
-            config->_callbacks.push_back(CallbackEntry(onInterrupt));
-        }
-        else {
-            throw std::invalid_argument("interrupt already set");
-        }
+void Interrupter::enablePin(const GPIO_PIN pin) {
+    
+    PINCONF_PTR conf = _get_config(pin);
+
+    if(conf != nullptr) {
+        conf->enabled = true;
+    }
+
+}
+
+void Interrupter::removePin(const GPIO_PIN pin) {
+
+    PINCONF_PTR conf = _get_config(pin);
+
+    if(conf == nullptr) {
+        return;
+    }
+
+    _close_pin(conf);
+
+    auto it = std::find_if(
+        _configs.begin(),
+        _configs.end(),
+        [conf](const PINCONF_PTR& p) {
+            return conf == p; });
+
+    _configs.erase(it);
 
 }
 
@@ -192,6 +242,70 @@ const char* const Interrupter::_edgeToStr(const Edge e) noexcept {
 
 const char* const Interrupter::_directionToStr(const Direction d) noexcept {
     return _DIRECTION_STRINGS[static_cast<size_t>(d)];
+}
+
+PINCONF_PTR Interrupter::_setup_pin(const GPIO_PIN pin, const Edge edge) {
+
+    struct epoll_event inev = {0};
+    PINCONF_PTR conf = nullptr;
+
+    //this is an infinite loop!
+    while(!_gpio_exported(pin)) {
+        try {
+            _export_gpio(pin, _exportFd);
+        }
+        catch(const std::runtime_error& ex) { }
+    }
+
+    _set_gpio_interrupt(pin, edge);
+   
+    conf = std::make_shared<PinConfig>(pin, edge);
+
+    const std::string pinValPath = _getClassNodePath(pin)
+        .append("/value");
+
+    //open file to watch for value change
+    if((conf->pinValFd = ::open(pinValPath.c_str(), O_RDONLY)) < 0) {
+        throw std::runtime_error("failed to setup interrupt");
+    }
+
+    inev.events = EPOLLPRI;
+    inev.data.fd = conf->pinValFd;
+    inev.data.ptr = conf.get();
+
+    //at this point, wiringpi appears to "clear" an interrupt
+    //merely by reading the value file to the end?
+    _clear_gpio_interrupt(conf->pinValFd);
+
+    if(::epoll_ctl(_epollFd, EPOLL_CTL_ADD, conf->pinValFd, &inev) != 0) {
+        throw std::runtime_error("failed to add to epoll");
+    }
+
+    return conf;
+
+}
+
+void Interrupter::_close_pin(PINCONF_PTR conf) {
+
+    //first, remove the file descriptors from the epoll
+    ::epoll_ctl(_epollFd, EPOLL_CTL_DEL, conf->pinValFd, nullptr);
+
+    //second, set the interrupt to none
+    //***this could fail and be messy if left unhandled***
+    _set_gpio_interrupt(conf->pin, Edge::NONE);
+
+    //third, close the file descriptors
+    ::close(conf->pinValFd);
+
+    //set some defaults for the ptr?
+    //conf->pin = -1;
+    //conf->edge = Edge::NONE;
+    //conf->_callbacks.clear();
+    //conf->pinValFd = -1;
+    //conf->enabled = false;
+
+    //delete conf; //???
+
 }
 
 std::string Interrupter::_getClassNodePath(const GPIO_PIN pin) noexcept {
@@ -350,12 +464,12 @@ bool Interrupter::_get_gpio_value_fd(const int fd) {
 
 }
 
-EDGE_CONF_PTR Interrupter::_get_config(const GPIO_PIN pin) noexcept {
+PINCONF_PTR Interrupter::_get_config(const GPIO_PIN pin) noexcept {
 
     auto it = std::find_if(
         _configs.begin(),
         _configs.end(), 
-        [pin](const EDGE_CONF_PTR& e) {
+        [pin](const PINCONF_PTR& e) {
             return e->pin == pin; });
 
     return it != _configs.end() ? *it : nullptr;
@@ -367,52 +481,12 @@ void Interrupter::_remove_config(const GPIO_PIN pin) noexcept {
     auto it = std::find_if(
         _configs.begin(),
         _configs.end(),
-        [pin](const EDGE_CONF_PTR& ec) {
+        [pin](const PINCONF_PTR& ec) {
             return ec->pin == pin; });
 
     if(it != _configs.end()) {
         _configs.erase(it);
     }
-
-}
-
-void Interrupter::_setupInterrupt(const GPIO_PIN pin, const Edge edge) {
-
-    while(!_gpio_exported(pin)) {
-        try {
-            _export_gpio(pin, _exportFd);
-        }
-        catch(const std::runtime_error& ex) {
-            ::usleep(500);
-        }
-    }
-
-    _set_gpio_interrupt(pin, edge);
-   
-    EDGE_CONF_PTR conf = std::make_shared<EdgeConfig>(pin, edge);
-
-    const std::string pinValPath = _getClassNodePath(pin)
-        .append("/value");
-
-    //open file to watch for value change
-    if((conf->pinValFd = ::open(pinValPath.c_str(), O_RDONLY)) < 0) {
-        throw std::runtime_error("failed to setup interrupt");
-    }
-
-    struct epoll_event inev = {0};
-    inev.events = EPOLLPRI;
-    inev.data.fd = conf->pinValFd;
-    inev.data.u32 = static_cast<uint32_t>(pin);
-
-    //at this point, wiringpi appears to "clear" an interrupt
-    //merely by reading the value file to the end?
-    _clear_gpio_interrupt(conf->pinValFd);
-
-    if(::epoll_ctl(_epollFd, EPOLL_CTL_ADD, conf->pinValFd, &inev) != 0) {
-        throw std::runtime_error("failed to add to epoll");
-    }
-
-    _configs.push_back(conf);
 
 }
 
@@ -432,15 +506,17 @@ void Interrupter::_watchEpoll() {
             continue;
         }
 
-        _processEpollEvent(outevent);
+        //this will need to be modified if delegated to another
+        //thread
+        _processEpollEvent(&outevent);
 
     }
 
 }
 
-void Interrupter::_processEpollEvent(const epoll_event ev) {
+void Interrupter::_processEpollEvent(const epoll_event* const ev) {
 
-    EDGE_CONF_PTR conf = _get_config(static_cast<GPIO_PIN>(ev.data.u32));
+    PINCONF_PTR conf = *static_cast<PINCONF_PTR*>(ev->data.ptr);
 
     if(conf == nullptr) {
         return;
