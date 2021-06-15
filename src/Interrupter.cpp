@@ -145,6 +145,7 @@ void Interrupter::disable(const GPIO_PIN pin, const INTERRUPT_CALLBACK cb) {
         conf->_callbacks.begin(),
         conf->_callbacks.end(), 
         [cb](const CallbackEntry& ce) {
+            //needs better equality testing between function objects... somehow...
             return cb.target<void()>() == ce.onInterrupt.target<void()>(); });
 
     if(it != conf->_callbacks.end()) {
