@@ -1,4 +1,7 @@
-src/Interrupter.cpp:105:0: style: The function 'getInterrupts' is never used. [unusedFunction]
+include/Interrupter.h:55:5: style: Class 'CallbackEntry' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    CallbackEntry(INTERRUPT_CALLBACK cb)
+    ^
+src/Interrupter.cpp:106:0: style: The function 'getInterrupts' is never used. [unusedFunction]
 
 ^
 nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
