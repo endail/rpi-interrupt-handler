@@ -185,7 +185,7 @@ void Interrupter::remove(const GPIO_PIN pin, const INTERRUPT_CALLBACK cb) {
         conf->_callbacks.begin(),
         conf->_callbacks.end(), 
         [cb](const CallbackEntry& ce) {
-            return cb.target<void()>() == *ce.onInterrupt.target<void()>(); });
+            return cb.target<void()>() == ce.onInterrupt.target<void()>(); });
 
     if(it != conf->_callbacks.end()) {
         conf->_callbacks.erase(it);
