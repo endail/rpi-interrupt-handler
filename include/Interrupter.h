@@ -30,6 +30,7 @@
 #include <thread>
 #include <vector>
 #include <sys/epoll.h>
+#include <unordered_map>
 
 namespace RpiGpioInterrupter {
 
@@ -76,7 +77,8 @@ class PinConfig {
 public:
     GPIO_PIN pin;
     Edge edge;
-    std::vector<CALLBACK_ENT_PTR> _callbacks;
+    std::unordered_map<CALLBACK_ID, CALLBACK_ENT_PTR> _callbacks;
+    //std::vector<CALLBACK_ENT_PTR> _callbacks;
     int pinValFd = -1;
     bool enabled = true;
     PinConfig(const GPIO_PIN p, const Edge e) noexcept
@@ -90,7 +92,7 @@ public:
 
     static void init();
     static void close();
-    static const std::vector<PINCONF_PTR>& getInterrupts() noexcept;
+    //static const std::vector<PINCONF_PTR>& getInterrupts() noexcept;
 
     //individual callbacks for a specific pin/edge combination
     static CALLBACK_ID attach(const GPIO_PIN pin, const Edge edge, const INTERRUPT_CALLBACK cb);
@@ -110,7 +112,8 @@ protected:
     static const char* const _EDGE_STRINGS[];
     static const char* const _DIRECTION_STRINGS[];
 
-    static std::vector<PINCONF_PTR> _configs;
+    static std::unordered_map<GPIO_PIN, PINCONF_PTR> _configs;
+    //static std::vector<PINCONF_PTR> _configs;
     static int _exportFd;
     static int _unexportFd;
     static int _epollFd;

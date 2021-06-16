@@ -41,7 +41,6 @@ int main(int argc, char** argv) {
     pinMode(outPin, OUTPUT);
 
     thread th = thread(pulsePin, outPin);
-    th.detach();
 
     const CALLBACK_ID id = Interrupter::attach(
         wpiPinToGpio(interruptPin),

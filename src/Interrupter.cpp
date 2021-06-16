@@ -54,15 +54,14 @@ const char* const Interrupter::_DIRECTION_STRINGS[] = {
     "out"
 };
 
-//std::list<PinConfig> Interrupter::_configs;
-std::vector<PINCONF_PTR> Interrupter::_configs;
+std::unordered_map<GPIO_PIN, PINCONF_PTR> Interrupter::_configs;
 std::thread Interrupter::_epollThread;
 int Interrupter::_epollFd;
 int Interrupter::_exportFd;
 int Interrupter::_unexportFd;
 
 void Interrupter::init() {
-
+    
     _exportFd = ::open(
         std::string(_GPIO_SYS_PATH).append("/export").c_str(),
         O_WRONLY);
@@ -86,15 +85,15 @@ void Interrupter::init() {
     }
 
     _epollThread = std::thread(_watchEpoll);
-    _epollThread.detach();
+    //_epollThread.detach();
 
 }
 
 void Interrupter::close() {
 
-    for(auto conf : _configs) {
-        removePin(conf->pin);
-        _unexport_gpio(conf->pin, _unexportFd);
+    for(auto& pair : _configs) {
+        removePin(pair.second->pin);
+        _unexport_gpio(pair.second->pin, _unexportFd);
     }
 
     ::close(_epollFd);
@@ -103,9 +102,11 @@ void Interrupter::close() {
 
 }
 
+/*
 const std::vector<PINCONF_PTR>& Interrupter::getInterrupts() noexcept {
     return _configs;
 }
+*/
 
 CALLBACK_ID Interrupter::attach(const GPIO_PIN pin, const Edge edge, const INTERRUPT_CALLBACK cb) {
 
@@ -115,24 +116,23 @@ CALLBACK_ID Interrupter::attach(const GPIO_PIN pin, const Edge edge, const INTER
     //      else, throw ex
     //  else, setup the pin/edge and add the callback
 
-    PINCONF_PTR conf = _get_config(pin);
+    PINCONF_PTR conf;
     CALLBACK_ENT_PTR ce;
 
-    //reverse these tests?
-    if(conf != nullptr) {
-        if(conf->edge == edge) {
-            ce = std::make_shared<CallbackEntry>(cb);
-            conf->_callbacks.push_back(ce);
-        }
-        else {
-            throw std::runtime_error("interrupt already set");
-        }
+    try {
+        conf = _configs.at(pin);
+    }
+    catch(std::out_of_range& ex) {
+        conf = _setup_pin(pin, edge);
+        _configs[pin] = conf;
+    }
+
+    if(conf->edge == edge) {
+        ce = std::make_shared<CallbackEntry>(cb);
+        conf->_callbacks[ce->id] = ce;
     }
     else {
-        conf = _setup_pin(pin, edge);
-        _configs.push_back(conf);
-        ce = std::make_shared<CallbackEntry>(cb);
-        conf->_callbacks.push_back(ce);
+        throw std::runtime_error("interrupt already set");
     }
 
     return ce->id;
@@ -140,61 +140,31 @@ CALLBACK_ID Interrupter::attach(const GPIO_PIN pin, const Edge edge, const INTER
 }
 
 void Interrupter::disable(const CALLBACK_ID id) {
-    CALLBACK_ENT_PTR ce = _get_callback(id);
-    if(ce) ce->enabled = false;
+    std::cout << "disabling pin" << std::endl;
+    _get_callback(id)->enabled = false;
+    std::cout << "finished disabling pin" << std::endl;
 }
 
 void Interrupter::enable(const CALLBACK_ID id) {
-    CALLBACK_ENT_PTR ce = _get_callback(id);
-    if(ce) ce->enabled = true;
+    _get_callback(id)->enabled = true;
 }
 
 void Interrupter::remove(const CALLBACK_ID id) {
-
-    PINCONF_PTR conf = _get_config(id);
-
-    if(conf == nullptr) {
-        return;
-    }
-
-    auto it = std::find_if(
-        conf->_callbacks.begin(),
-        conf->_callbacks.end(),
-        [id](const CALLBACK_ENT_PTR& ce) {
-            return ce->id == id; });
-
-    conf->_callbacks.erase(it);
-
+    _get_config(id)->_callbacks.erase(id);
 }
 
 void Interrupter::disablePin(const GPIO_PIN pin) {
-    PINCONF_PTR conf = _get_config(pin);
-    if(conf) conf->enabled = false;
+    _configs.at(pin)->enabled = false;
 }
 
 void Interrupter::enablePin(const GPIO_PIN pin) {
-    PINCONF_PTR conf = _get_config(pin);
-    if(conf) conf->enabled = true;
+    _configs.at(pin)->enabled = true;
 }
 
 void Interrupter::removePin(const GPIO_PIN pin) {
-
-    PINCONF_PTR conf = _get_config(pin);
-
-    if(conf == nullptr) {
-        return;
-    }
-
+    PINCONF_PTR conf = _configs.at(pin);
     _close_pin(conf);
-
-    auto it = std::find_if(
-        _configs.begin(),
-        _configs.end(),
-        [conf](const PINCONF_PTR& p) {
-            return conf == p; });
-
-    _configs.erase(it);
-
+    _configs.erase(pin);
 }
 
 Interrupter::Interrupter() noexcept {
@@ -234,8 +204,9 @@ PINCONF_PTR Interrupter::_setup_pin(const GPIO_PIN pin, const Edge edge) {
     }
 
     inev.events = EPOLLPRI;
-    inev.data.fd = conf->pinValFd;
-    inev.data.ptr = conf.get();
+    //inev.data.fd = conf->pinValFd;
+    //inev.data.ptr = &conf;
+    inev.data.u64 = static_cast<uint64_t>(conf->pin);
 
     //at this point, wiringpi appears to "clear" an interrupt
     //merely by reading the value file to the end?
@@ -430,10 +401,10 @@ bool Interrupter::_get_gpio_value_fd(const int fd) {
 
 PINCONF_PTR Interrupter::_get_config(const CALLBACK_ID id) noexcept {
 
-    for(auto conf : _configs) {
-        for(auto ce : conf->_callbacks) {
-            if(ce->id == id) {
-                return conf;
+    for(auto& confPair : _configs) {
+        for(auto& callbackPair : confPair.second->_callbacks) {
+            if(callbackPair.second->id == id) {
+                return confPair.second;
             }
         }
     }
@@ -443,37 +414,19 @@ PINCONF_PTR Interrupter::_get_config(const CALLBACK_ID id) noexcept {
 }
 
 PINCONF_PTR Interrupter::_get_config(const GPIO_PIN pin) noexcept {
-
-    auto it = std::find_if(
-        _configs.begin(),
-        _configs.end(), 
-        [pin](const PINCONF_PTR& e) {
-            return e->pin == pin; });
-
-    return it != _configs.end() ? *it : nullptr;
-
+    return _configs.at(pin);
 }
 
 void Interrupter::_remove_config(const GPIO_PIN pin) noexcept {
-
-    auto it = std::find_if(
-        _configs.begin(),
-        _configs.end(),
-        [pin](const PINCONF_PTR& ec) {
-            return ec->pin == pin; });
-
-    if(it != _configs.end()) {
-        _configs.erase(it);
-    }
-
+    _configs.erase(pin);
 }
 
 CALLBACK_ENT_PTR Interrupter::_get_callback(const CALLBACK_ID id) noexcept {
 
-    for(auto conf : _configs) {
-        for(auto ce : conf->_callbacks) {
-            if(ce->id == id) {
-                return ce;
+    for(auto& confPair : _configs) {
+        for(auto& callbackPair : confPair.second->_callbacks) {
+            if(callbackPair.second->id == id) {
+                return callbackPair.second;
             }
         }
     }
@@ -508,7 +461,7 @@ void Interrupter::_watchEpoll() {
 
 void Interrupter::_processEpollEvent(const epoll_event* const ev) {
 
-    PINCONF_PTR conf = *static_cast<PINCONF_PTR*>(ev->data.ptr);
+    PINCONF_PTR conf = _configs.at(static_cast<GPIO_PIN>(ev->data.u64));
 
     if(conf == nullptr) {
         return;
@@ -526,20 +479,12 @@ void Interrupter::_processEpollEvent(const epoll_event* const ev) {
         return;
     }
 
-    auto it = conf->_callbacks.begin();
-    auto end = conf->_callbacks.end();
-
-    for(; it != end; ++it) {
-        if((*it)->enabled && (*it)->onInterrupt) {
-            
-            //handler is not responsible for dealing with
-            //exceptions arising from user code and should
-            //ignore them for the sake of efficiency
+    for(auto& ce : conf->_callbacks) {
+        if(ce.second->enabled && ce.second->onInterrupt) {
             try {
-                (*it)->onInterrupt();
+                ce.second->onInterrupt();
             }
             catch(...) { }
-
         }
     }
 
