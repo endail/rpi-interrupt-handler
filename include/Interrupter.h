@@ -35,6 +35,7 @@ namespace RpiGpioInterrupter {
 
 typedef std::function<void()> INTERRUPT_CALLBACK;
 typedef int GPIO_PIN;
+typedef unsigned int CALLBACK_ID;
 
 enum class Direction {
     IN = 0,
@@ -50,17 +51,32 @@ enum class Edge {
 
 class CallbackEntry {
 public:
+    const CALLBACK_ID id;
     bool enabled;
-    INTERRUPT_CALLBACK onInterrupt;
-    CallbackEntry(INTERRUPT_CALLBACK cb) noexcept
-        : enabled(true), onInterrupt(cb) { }
+    const INTERRUPT_CALLBACK onInterrupt;
+    
+    CallbackEntry(const INTERRUPT_CALLBACK cb) noexcept
+        : id(_genId()), enabled(true), onInterrupt(cb) { }
+    
+    bool operator==(const CallbackEntry& ce) noexcept {
+        return this->id == ce.id;
+    }
+
+protected:
+    static CALLBACK_ID _genId() noexcept {
+        static CALLBACK_ID _id = 0;
+        return ++_id;
+    }
+
 };
+
+typedef std::shared_ptr<CallbackEntry> CALLBACK_ENT_PTR;
 
 class PinConfig {
 public:
     GPIO_PIN pin;
     Edge edge;
-    std::vector<CallbackEntry> _callbacks;
+    std::vector<CALLBACK_ENT_PTR> _callbacks;
     int pinValFd = -1;
     bool enabled = true;
     PinConfig(const GPIO_PIN p, const Edge e) noexcept
@@ -77,10 +93,10 @@ public:
     static const std::vector<PINCONF_PTR>& getInterrupts() noexcept;
 
     //individual callbacks for a specific pin/edge combination
-    static void attach(const GPIO_PIN pin, const Edge edge, const INTERRUPT_CALLBACK cb);
-    static void disable(const GPIO_PIN pin, const INTERRUPT_CALLBACK cb);
-    static void enable(const GPIO_PIN pin, const INTERRUPT_CALLBACK cb);
-    static void remove(const GPIO_PIN pin, const INTERRUPT_CALLBACK cb);
+    static CALLBACK_ID attach(const GPIO_PIN pin, const Edge edge, const INTERRUPT_CALLBACK cb);
+    static void disable(const CALLBACK_ID id);
+    static void enable(const CALLBACK_ID id);
+    static void remove(const CALLBACK_ID id);
 
     //function which affect all callbacks on a specific pin
     static void disablePin(const GPIO_PIN pin);
@@ -124,8 +140,10 @@ protected:
     static bool _get_gpio_value(const GPIO_PIN pin);
     static bool _get_gpio_value_fd(const int fd);
 
+    static PINCONF_PTR _get_config(const CALLBACK_ID id) noexcept;
     static PINCONF_PTR _get_config(const GPIO_PIN pin) noexcept;
     static void _remove_config(const GPIO_PIN pin) noexcept;
+    static CALLBACK_ENT_PTR _get_callback(const CALLBACK_ID id) noexcept;
 
     static void _watchEpoll();
     static void _processEpollEvent(const epoll_event* const ev);

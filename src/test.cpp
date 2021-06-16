@@ -43,10 +43,13 @@ int main(int argc, char** argv) {
     thread th = thread(pulsePin, outPin);
     th.detach();
 
-    Interrupter::attach(
+    const CALLBACK_ID id = Interrupter::attach(
         wpiPinToGpio(interruptPin),
         Edge::RISING,
-        []() { cout << "interrupt one" << endl; });
+        [id]() {
+            cout << "interrupt one" << endl;
+            Interrupter::disable(id);
+        });
 
     Interrupter::attach(
         wpiPinToGpio(interruptPin),
