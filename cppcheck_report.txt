@@ -1,17 +1,11 @@
-include/Interrupter.h:62:10: style:inconclusive: Technically the member function 'RpiGpioInterrupter::CallbackEntry::operator==' can be const. [functionConst]
-    bool operator==(const CallbackEntry& ce) noexcept {
-         ^
-include/Interrupter.h:59:5: style: Class 'CallbackEntry' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
-    CallbackEntry(const INTERRUPT_CALLBACK cb) noexcept
+include/Interrupter.h:56:5: style: Class 'CallbackEntry' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    CallbackEntry(const INTERRUPT_CALLBACK cb) noexcept;
     ^
 src/Interrupter.cpp:406:47: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
             if(callbackPair.second->id == id) {
                                               ^
-src/Interrupter.cpp:428:47: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+src/Interrupter.cpp:420:47: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
             if(callbackPair.second->id == id) {
                                               ^
-src/test.cpp:48:10: error: Uninitialized variable: id [uninitvar]
-        [id]() {
-         ^
 nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
 
