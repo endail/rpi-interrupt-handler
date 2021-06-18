@@ -21,24 +21,32 @@
 // SOFTWARE.
 
 #include "../include/Interrupter.h"
-#include <algorithm>
 #include <cstring>
-#include <iterator>
 #include <stdexcept>
 #include <thread>
-#include <sys/epoll.h>
-#include <sys/eventfd.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <fcntl.h>
+#include <pthread.h>
+#include <sched.h>
+#include <sys/epoll.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 #include <iostream>
 #include <errno.h>
 
 namespace RpiGpioInterrupter {
+
+CALLBACK_ID CallbackEntry::_id = 0;
+
+CallbackEntry::CallbackEntry(const INTERRUPT_CALLBACK cb) noexcept
+    : id(_genId()), enabled(true), onInterrupt(cb) { }
+
+CALLBACK_ID CallbackEntry::_genId() noexcept {
+    return _id++;
+}
+
+PinConfig::PinConfig(const GPIO_PIN p, const Edge e) noexcept
+    : pin(p), edge(e), pinValFd(-1), enabled(true) { }
 
 const char* const Interrupter::_GPIO_SYS_PATH = "/sys/class/gpio";
 
@@ -84,14 +92,25 @@ void Interrupter::init() {
         throw std::runtime_error("unable to create epoll");
     }
 
+    //TODO: change to pthread
     _epollThread = std::thread(_watchEpoll);
-    //_epollThread.detach();
+
+    //TODO: increase thread priority!
+    struct sched_param schParams = {0};
+    schParams.sched_priority = sched_get_priority_max(SCHED_RR);
+
+    if(::pthread_setschedparam(
+        _epollThread.native_handle(),
+        SCHED_RR,
+        &schParams) < 0) {
+            throw std::runtime_error("unable to set shceduler");
+    }
 
 }
 
 void Interrupter::close() {
 
-    for(auto& pair : _configs) {
+    for(const auto& pair : _configs) {
         removePin(pair.second->pin);
         _unexport_gpio(pair.second->pin, _unexportFd);
     }
@@ -102,55 +121,44 @@ void Interrupter::close() {
 
 }
 
-/*
-const std::vector<PINCONF_PTR>& Interrupter::getInterrupts() noexcept {
-    return _configs;
-}
-*/
+CALLBACK_ID Interrupter::attach(
+    const GPIO_PIN pin,
+    const Edge edge,
+    const INTERRUPT_CALLBACK cb) {
 
-CALLBACK_ID Interrupter::attach(const GPIO_PIN pin, const Edge edge, const INTERRUPT_CALLBACK cb) {
+        PINCONF_PTR conf;
+        CALLBACK_ENT_PTR ce;
 
-    //first, check if a config for the pin exists
-    //  if it does, check if the edge matches
-    //      if it does, add the callback
-    //      else, throw ex
-    //  else, setup the pin/edge and add the callback
+        try {
+            conf = _configs.at(pin);
+        }
+        catch(std::out_of_range& ex) {
+            conf = _setup_pin(pin, edge);
+            _configs[pin] = conf;
+        }
 
-    PINCONF_PTR conf;
-    CALLBACK_ENT_PTR ce;
-
-    try {
-        conf = _configs.at(pin);
-    }
-    catch(std::out_of_range& ex) {
-        conf = _setup_pin(pin, edge);
-        _configs[pin] = conf;
-    }
-
-    if(conf->edge == edge) {
-        ce = std::make_shared<CallbackEntry>(cb);
-        conf->_callbacks[ce->id] = ce;
-    }
-    else {
+        if(conf->edge == edge) {
+            ce = std::make_shared<CallbackEntry>(cb);
+            conf->callbacks[ce->id] = ce;
+            return ce->id;
+        }
+        
+        //an interrupt can only exist for one type of edge
+        //per pin
         throw std::runtime_error("interrupt already set");
-    }
-
-    return ce->id;
 
 }
 
 void Interrupter::disable(const CALLBACK_ID id) {
-    std::cout << "disabling pin" << std::endl;
-    _get_callback(id)->enabled = false;
-    std::cout << "finished disabling pin" << std::endl;
+    _get_callback_by_id(id)->enabled = false;
 }
 
 void Interrupter::enable(const CALLBACK_ID id) {
-    _get_callback(id)->enabled = true;
+    _get_callback_by_id(id)->enabled = true;
 }
 
 void Interrupter::remove(const CALLBACK_ID id) {
-    _get_config(id)->_callbacks.erase(id);
+    _get_config_by_callback_id(id)->callbacks.erase(id);
 }
 
 void Interrupter::disablePin(const GPIO_PIN pin) {
@@ -182,8 +190,10 @@ PINCONF_PTR Interrupter::_setup_pin(const GPIO_PIN pin, const Edge edge) {
 
     struct epoll_event inev = {0};
     PINCONF_PTR conf = nullptr;
+    std::string pinValPath;
 
-    //this could be an infinite loop!
+    //TODO: I don't like this!
+    //better way to handle the - POTENTIAL - infinite loop?
     while(!_gpio_exported(pin)) {
         try {
             _export_gpio(pin, _exportFd);
@@ -194,19 +204,16 @@ PINCONF_PTR Interrupter::_setup_pin(const GPIO_PIN pin, const Edge edge) {
     _set_gpio_interrupt(pin, edge);
    
     conf = std::make_shared<PinConfig>(pin, edge);
-
-    const std::string pinValPath = _getClassNodePath(pin)
-        .append("/value");
+    pinValPath = _getClassNodePath(pin).append("/value");
 
     //open file to watch for value change
     if((conf->pinValFd = ::open(pinValPath.c_str(), O_RDONLY)) < 0) {
         throw std::runtime_error("failed to setup interrupt");
     }
 
-    inev.events = EPOLLPRI;
-    //inev.data.fd = conf->pinValFd;
-    //inev.data.ptr = &conf;
+    //put the pin number in the event struct
     inev.data.u64 = static_cast<uint64_t>(conf->pin);
+    inev.events = EPOLLPRI | EPOLLWAKEUP;
 
     //at this point, wiringpi appears to "clear" an interrupt
     //merely by reading the value file to the end?
@@ -220,26 +227,19 @@ PINCONF_PTR Interrupter::_setup_pin(const GPIO_PIN pin, const Edge edge) {
 
 }
 
-void Interrupter::_close_pin(PINCONF_PTR conf) {
+void Interrupter::_close_pin(const PINCONF_PTR conf) {
 
     //first, remove the file descriptors from the epoll
     ::epoll_ctl(_epollFd, EPOLL_CTL_DEL, conf->pinValFd, nullptr);
 
     //second, set the interrupt to none
-    //***this could fail and be messy if left unhandled***
+    //this could fail and be messy if left unhandled
+    //technically doesn't need to be done since nothing
+    //will be watching for the interrupt any more
     _set_gpio_interrupt(conf->pin, Edge::NONE);
 
     //third, close the file descriptors
     ::close(conf->pinValFd);
-
-    //set some defaults for the ptr?
-    //conf->pin = -1;
-    //conf->edge = Edge::NONE;
-    //conf->_callbacks.clear();
-    //conf->pinValFd = -1;
-    //conf->enabled = false;
-
-    //delete conf; //???
 
 }
 
@@ -399,10 +399,10 @@ bool Interrupter::_get_gpio_value_fd(const int fd) {
 
 }
 
-PINCONF_PTR Interrupter::_get_config(const CALLBACK_ID id) noexcept {
+PINCONF_PTR Interrupter::_get_config_by_callback_id(const CALLBACK_ID id) noexcept {
 
-    for(auto& confPair : _configs) {
-        for(auto& callbackPair : confPair.second->_callbacks) {
+    for(const auto& confPair : _configs) {
+        for(const auto& callbackPair : confPair.second->callbacks) {
             if(callbackPair.second->id == id) {
                 return confPair.second;
             }
@@ -413,18 +413,10 @@ PINCONF_PTR Interrupter::_get_config(const CALLBACK_ID id) noexcept {
 
 }
 
-PINCONF_PTR Interrupter::_get_config(const GPIO_PIN pin) noexcept {
-    return _configs.at(pin);
-}
+CALLBACK_ENT_PTR Interrupter::_get_callback_by_id(const CALLBACK_ID id) noexcept {
 
-void Interrupter::_remove_config(const GPIO_PIN pin) noexcept {
-    _configs.erase(pin);
-}
-
-CALLBACK_ENT_PTR Interrupter::_get_callback(const CALLBACK_ID id) noexcept {
-
-    for(auto& confPair : _configs) {
-        for(auto& callbackPair : confPair.second->_callbacks) {
+    for(const auto& confPair : _configs) {
+        for(const auto& callbackPair : confPair.second->callbacks) {
             if(callbackPair.second->id == id) {
                 return callbackPair.second;
             }
@@ -436,6 +428,12 @@ CALLBACK_ENT_PTR Interrupter::_get_callback(const CALLBACK_ID id) noexcept {
 }
 
 void Interrupter::_watchEpoll() {
+
+    //TODO: this needs to be put in a different spot!
+    ::setpriority(
+        PRIO_PROCESS,
+        0,
+        PRIO_MIN);
 
     struct epoll_event outevent;
 
@@ -451,8 +449,8 @@ void Interrupter::_watchEpoll() {
             continue;
         }
 
-        //this will need to be modified if delegated to another
-        //thread
+        //this will need to be modified if the task of processing
+        //events is delegated to another thread
         _processEpollEvent(&outevent);
 
     }
@@ -461,30 +459,42 @@ void Interrupter::_watchEpoll() {
 
 void Interrupter::_processEpollEvent(const epoll_event* const ev) {
 
-    PINCONF_PTR conf = _configs.at(static_cast<GPIO_PIN>(ev->data.u64));
-
-    if(conf == nullptr) {
+    PINCONF_PTR conf;
+    
+    try {
+        conf = _configs.at(static_cast<GPIO_PIN>(ev->data.u64));
+    }
+    catch(const std::out_of_range& ex) {
+        //it is possible that between the hardware interrupt occurring
+        //and being handled that the pin config is removed. this should
+        //not stop the thread
         return;
     }
 
-    //wiringpi does this to "reset" the interrupt
-    //https://github.com/WiringPi/WiringPi/blob/master/wiringPi/wiringPi.c#L1947-L1954
-    //should this go before or after the onInterrupt call?
     try {
+        //TODO: should this be the first thing to occur?
         _clear_gpio_interrupt(conf->pinValFd);
     }
-    catch(...) { }
+    catch(const std::runtime_error& ex) {
+        //it is possible this could fail, but it should not
+        //prevent the interrupt handler functions from being
+        //called
+    }
 
     if(!conf->enabled) {
         return;
     }
 
-    for(auto& ce : conf->_callbacks) {
+    for(const auto& ce : conf->callbacks) {
         if(ce.second->enabled && ce.second->onInterrupt) {
             try {
                 ce.second->onInterrupt();
             }
-            catch(...) { }
+            catch(...) {
+                //this function is not responsible for handling
+                //exceptions, and any exceptions thrown should not
+                //stop the thread
+            }
         }
     }
 

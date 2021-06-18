@@ -13,17 +13,23 @@ using namespace RpiGpioInterrupter;
 bool keepRunning = true;
 int interruptPin;
 int outPin;
+int pulseCount = 0;
+chrono::high_resolution_clock::time_point whenPulsed;
+CALLBACK_ID int1;
+CALLBACK_ID int2;
 
 void onInterrupt() {
-    std::cout << "***interrupt***" << std::endl << std::flush;
-    Interrupter::removePin(wpiPinToGpio(interruptPin));
+    auto now = chrono::high_resolution_clock::now();
+    auto diff = chrono::duration_cast<chrono::microseconds>(now - whenPulsed);
+    cout << "***interrupt, took " << diff.count() << " microseconds" << endl;
 }
 
 void pulsePin(const int pin) {
     bool state = digitalRead(pin) == HIGH;
     while(keepRunning) {
         state = !state;
-        cout << "Setting pin " << pin << " to " << (state ? "high" : "low") << endl;
+        //cout << "Setting pin " << pin << " to " << (state ? "high" : "low") << endl;
+        whenPulsed = chrono::high_resolution_clock::now();
         digitalWrite(pin, state ? HIGH : LOW);
         this_thread::sleep_for(chrono::seconds(1));
     }
@@ -42,18 +48,10 @@ int main(int argc, char** argv) {
 
     thread th = thread(pulsePin, outPin);
 
-    const CALLBACK_ID id = Interrupter::attach(
+    int1 = Interrupter::attach( 
         wpiPinToGpio(interruptPin),
-        Edge::RISING,
-        [id]() {
-            cout << "interrupt one" << endl;
-            Interrupter::disable(id);
-        });
-
-    Interrupter::attach(
-        wpiPinToGpio(interruptPin),
-        Edge::RISING,
-        []() { cout << "interrupt two" << endl; });
+        Edge::BOTH,
+        onInterrupt);
 
     th.join();
 
